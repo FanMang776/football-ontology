@@ -51,10 +51,15 @@ def apply_vip_rules(g: Graph, spend_threshold: int = 5000,
     return out
 
 # ---------- 动作规则（情况 → 建议动作）----------
-# 每条查询末尾的 FILTER NOT EXISTS 是"建议不重复"的关键：
-# 执行器把动作效果写回后（status=paused / notified=true / …），
-# 条件不再成立，动作自然从建议清单消失——建议动作也是推论，不落库。
+# 防重复建议有两种机制，按查询分别说明：
+#   1) Q_PAUSE 用正向匹配 ?promo ex:status "active"——活动暂停后条件即不成立；
+#   2) Q_NOTIFY / Q_PURCHASE / Q_SUBSTITUTE 用 FILTER NOT EXISTS 前置谓词
+#      （notified / restockRequested / promoBoosted）——效果写回后动作从清单消失。
+# 即：建议动作和推理结论一样是推论，不落库。
 # 动作规则用 SELECT 匹配情况，动作三元组、确定性 ID 与解释文本在 Python 侧组装。
+# ⚠ 执行器注意：PausePromotion 的效果必须用 graph.set 语义"先删后加"改 status，
+#    因为数据中已存在 promo ex:status "active"；若只是再加一条 "paused"，
+#    两条 status 并存，Q_PAUSE 将永远命中。
 
 Q_PAUSE = prepareQuery(PREFIX + """
 SELECT DISTINCT ?p ?promo WHERE {
@@ -83,6 +88,7 @@ SELECT DISTINCT ?p ?p2 ?s2 WHERE {
     ?sup ex:status "delayed" .
     ?p ex:suppliedBy ?sup .
     ?p2 ex:substituteFor ?p ; ex:suppliedBy ?s2 .
+    FILTER(?s2 != ?sup)  # 替代品若由同一延迟供应商供应，采购转向无从谈起
     FILTER NOT EXISTS { ?p ex:restockRequested true }
 }
 """)
@@ -118,7 +124,9 @@ def apply_action_rules(g: Graph):
         return str(v) if v else str(n).split("#")[-1]
 
     def put(act, kind, targets, reason, extra=()):
-        if act in reasons:  # 同一动作命中多行情况（如一个活动覆盖多个延迟商品）时只记一次
+        # 聚合后暂停动作已保证一活动一 put；此守卫兜底的是替代品分支：
+        # 一个商品可能有多条 substituteFor 边，行排序已全键化，这里是最后防线。
+        if act in reasons:
             return
         actions.add((act, RDF.type, kind))
         for t in targets:
@@ -148,14 +156,14 @@ def apply_action_rules(g: Graph):
         put(_action_id("NotifyCustomer", cust), EX.NotifyCustomer, [cust],
             f"VIP 客户「{label_of(cust)}」有待发货订单包含延迟供应商的商品，建议主动通知。")
 
-    for row in sorted(g.query(Q_PURCHASE), key=lambda r: str(r.p)):
+    for row in sorted(g.query(Q_PURCHASE), key=lambda r: tuple(str(x) for x in r)):
         p, p2, s2 = row.p, row.p2, row.s2
         put(_action_id("CreatePurchaseOrder", p), EX.CreatePurchaseOrder, [p],
             f"「{label_of(p)}」受供应风险影响，其替代品「{label_of(p2)}」由"
             f"「{label_of(s2)}」供应——采购转向依据 substituteFor 关系。",
             extra=[(EX.hasSupplier, s2)])
 
-    for row in sorted(g.query(Q_SUBSTITUTE), key=lambda r: str(r.p2)):
+    for row in sorted(g.query(Q_SUBSTITUTE), key=lambda r: tuple(str(x) for x in r)):
         p, p2 = row.p, row.p2
         put(_action_id("PromoteSubstitute", p2), EX.PromoteSubstitute, [p2],
             f"「{label_of(p)}」受供应风险影响，推荐位切换到有货的替代品「{label_of(p2)}」。")
