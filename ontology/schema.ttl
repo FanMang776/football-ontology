@@ -1,0 +1,70 @@
+@prefix ex: <http://example.org/ecom#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+########################
+# 顶层类
+########################
+ex:BusinessObject a owl:Class ; rdfs:label "业务对象"@zh .
+ex:Product  rdfs:subClassOf ex:BusinessObject ; rdfs:label "商品"@zh .
+ex:Bundle   rdfs:subClassOf ex:Product ; rdfs:label "捆绑套装"@zh .
+ex:Party    rdfs:subClassOf ex:BusinessObject ; rdfs:label "参与方"@zh .
+ex:Supplier rdfs:subClassOf ex:Party ; rdfs:label "供应商"@zh .
+ex:Customer rdfs:subClassOf ex:Party ; rdfs:label "客户"@zh .
+# VIPCustomer 只会被规则层推断出来，数据中永远不声明
+ex:VIPCustomer rdfs:subClassOf ex:Customer ; rdfs:label "高价值客户"@zh .
+ex:Order     rdfs:subClassOf ex:BusinessObject ; rdfs:label "订单"@zh .
+ex:OrderLine rdfs:subClassOf ex:BusinessObject ; rdfs:label "订单明细"@zh .
+ex:Promotion rdfs:subClassOf ex:BusinessObject ; rdfs:label "促销活动"@zh .
+
+########################
+# 决策动作——本体不仅描述业务，也描述"可做的事"
+########################
+ex:Action              rdfs:subClassOf ex:BusinessObject ; rdfs:label "决策动作"@zh .
+ex:PausePromotion      rdfs:subClassOf ex:Action ; rdfs:label "暂停促销"@zh .
+ex:NotifyCustomer      rdfs:subClassOf ex:Action ; rdfs:label "通知客户"@zh .
+ex:CreatePurchaseOrder rdfs:subClassOf ex:Action ; rdfs:label "生成采购单"@zh .
+ex:PromoteSubstitute   rdfs:subClassOf ex:Action ; rdfs:label "推荐替代品"@zh .
+
+########################
+# 品类即类：品类树就是 subClassOf 树
+########################
+ex:cat_electronics a owl:Class ; rdfs:subClassOf ex:Product ; rdfs:label "电子产品"@zh .
+ex:cat_digital_acc a owl:Class ; rdfs:subClassOf ex:cat_electronics ; rdfs:label "数码配件"@zh .
+ex:cat_headphone   a owl:Class ; rdfs:subClassOf ex:cat_digital_acc ; rdfs:label "耳机"@zh .
+ex:cat_charger     a owl:Class ; rdfs:subClassOf ex:cat_digital_acc ; rdfs:label "充电设备"@zh .
+ex:cat_cable       a owl:Class ; rdfs:subClassOf ex:cat_digital_acc ; rdfs:label "线材"@zh .
+ex:cat_audio       a owl:Class ; rdfs:subClassOf ex:cat_digital_acc ; rdfs:label "音频设备"@zh .
+ex:cat_speaker     a owl:Class ; rdfs:subClassOf ex:cat_audio ; rdfs:label "音箱"@zh .
+ex:cat_home        a owl:Class ; rdfs:subClassOf ex:Product ; rdfs:label "智能家居"@zh .
+ex:cat_bulb        a owl:Class ; rdfs:subClassOf ex:cat_home ; rdfs:label "智能灯泡"@zh .
+
+########################
+# 对象属性与公理（推理能力的来源）
+########################
+ex:suppliedBy     a owl:ObjectProperty ; rdfs:label "由…供应"@zh .
+ex:hasPart        a owl:ObjectProperty , owl:TransitiveProperty ; rdfs:label "包含"@zh .
+ex:isComponentOf  a owl:ObjectProperty ; owl:inverseOf ex:hasPart ; rdfs:label "是…的组成部分"@zh .
+ex:substituteFor  a owl:ObjectProperty , owl:SymmetricProperty ; rdfs:label "替代"@zh .
+ex:compatibleWith a owl:ObjectProperty , owl:SymmetricProperty ; rdfs:label "兼容"@zh .
+ex:sameSeries     a owl:ObjectProperty , owl:SymmetricProperty ; rdfs:label "同系列"@zh .
+ex:placedBy       a owl:ObjectProperty ; rdfs:label "下单人"@zh .
+ex:hasLine        a owl:ObjectProperty ; rdfs:label "包含明细"@zh .
+ex:lineProduct    a owl:ObjectProperty ; rdfs:label "明细商品"@zh .
+ex:promotes       a owl:ObjectProperty ; rdfs:label "推广"@zh .
+ex:hasTarget      a owl:ObjectProperty ; rdfs:label "动作目标"@zh .
+ex:hasSupplier    a owl:ObjectProperty ; rdfs:label "动作相关供应商"@zh .
+
+########################
+# 数据属性
+########################
+ex:price           a owl:DatatypeProperty ; rdfs:label "价格"@zh .
+ex:stock           a owl:DatatypeProperty ; rdfs:label "库存"@zh .
+ex:annualSpend     a owl:DatatypeProperty ; rdfs:label "年消费额"@zh .
+ex:membershipLevel a owl:DatatypeProperty ; rdfs:label "会员等级"@zh .
+ex:status          a owl:DatatypeProperty ; rdfs:label "状态"@zh .
+ex:orderStatus     a owl:DatatypeProperty ; rdfs:label "订单状态"@zh .
+ex:notified        a owl:DatatypeProperty ; rdfs:label "已通知"@zh .
+ex:restockRequested a owl:DatatypeProperty ; rdfs:label "已请求补货"@zh .
+ex:promoBoosted    a owl:DatatypeProperty ; rdfs:label "已加推"@zh .
+ex:hasReason       a owl:DatatypeProperty ; rdfs:label "动作原因"@zh .
