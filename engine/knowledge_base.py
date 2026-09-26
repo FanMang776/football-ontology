@@ -64,6 +64,14 @@ class KnowledgeBase:
         return {"products": [], "bundles": [], "promotions": [],
                 "pending_orders": [], "vip_customers": [], "chain": []}
 
+    def risk_view(self) -> dict:
+        """当前延迟供应商的风险视图（供执行后查看风险仍在、动作已处置）。"""
+        from engine.scenarios import risk_chain
+        delayed = [s for s in self.material.subjects(EX.status, Literal("delayed"))]
+        if not delayed:
+            return self._empty_risk()
+        return risk_chain(self, sorted(delayed, key=str)[0])
+
     # ---------- 场景 2：VIP 分类 ----------
     def vip_classification(self, spend: int, min_orders: int) -> dict:
         self.vip_params = {"spend": int(spend), "min_orders": int(min_orders)}
