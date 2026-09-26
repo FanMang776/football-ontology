@@ -10,6 +10,7 @@ PREFIX = ("PREFIX ex: <http://example.org/ecom#> "
           "PREFIX owl: <http://www.w3.org/2002/07/owl#>")
 
 # ---------- 分类规则 ----------
+# 注意：模板用 % 格式化注入阈值，规则 SPARQL 中如出现字面量 % 必须写成 %%，否则格式化时报 ValueError。
 
 VIP_SPEND = PREFIX + """
 CONSTRUCT { ?c a ex:VIPCustomer . }
@@ -32,7 +33,13 @@ WHERE {
 
 def apply_vip_rules(g: Graph, spend_threshold: int = 5000,
                     min_orders: int = 3) -> Graph:
-    """返回仅包含推断出的 VIPCustomer 类型三元组的图。"""
+    """返回仅包含推断出的 VIPCustomer 类型三元组的图。
+
+    契约：返回值只含新推断的三元组，不包含输入图 g；
+    调用方需自行将 g 与返回值合并后再做后续查询。
+    """
+    spend_threshold = int(spend_threshold)
+    min_orders = int(min_orders)
     out = Graph()
     for tmpl in (VIP_SPEND, VIP_SILVER):
         res = g.query(tmpl % {"spend": spend_threshold, "min_orders": min_orders})
