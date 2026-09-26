@@ -25,18 +25,19 @@ SELECT DISTINCT ?promo ?label WHERE {
     { ?promo ex:promotes ?p . }                                    # 直接推广该商品
     UNION { ?promo ex:promotes ?b . ?p ex:isComponentOf ?b . }     # 推广其所属套装
     UNION { ?promo ex:promotes ?c . ?p a ?c . ?c a owl:Class . }   # 推广其所属品类
-}
+} ORDER BY ?promo
 """
 
 PENDING_ORDERS_WITH_PRODUCT = PREFIX + """
 SELECT DISTINCT ?o ?cust ?custLabel WHERE {
     ?o ex:orderStatus "pending" ; ex:placedBy ?cust .
     ?cust rdfs:label ?custLabel .
-}
+} ORDER BY ?o
 """
 
 LINES_OF_ORDER = PREFIX + """
 SELECT ?product WHERE { ?o ex:hasLine ?line . ?line ex:lineProduct ?product . }
+ORDER BY ?product
 """
 
 ORDER_COUNTS = PREFIX + """

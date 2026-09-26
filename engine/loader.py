@@ -3,6 +3,9 @@
 核心心智模型：图谱有两层——
   声明的三元组 (declared)：schema.ttl + data.ttl 里白纸黑字写的
   推断的三元组 (inferred)：推理机物化出来的，永远不落库、随事实即时重算
+
+本模块只负责这两层；运行时完整分层模型（declared/retractions/effects/material/rule_out）
+见 engine/knowledge_base.py 的模块注释。
 """
 from pathlib import Path
 

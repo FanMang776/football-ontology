@@ -7,6 +7,8 @@
   material    (declared − retractions + effects) 过 OWL-RL 闭包
   rule_out    VIP 分类规则 + 动作规则的产出（每次刷新重算，是推论不是数据）
 """
+import threading
+
 from rdflib import Graph, Literal
 
 from engine.loader import load_declared, materialize
@@ -21,14 +23,19 @@ class KnowledgeBase:
         self.effects = Graph()
         self.retractions = Graph()
         self.vip_params = {"spend": 5000, "min_orders": 3}
+        # FastAPI 会把同步端点放进线程池并发调用，而 rdflib 图不支持并发读写；
+        # 全部可变入口（含 refresh）经此锁串行化。用 RLock：execute_all 内部会
+        # 再次调用同样加锁的 execute。
+        self._lock = threading.RLock()
         self.refresh()
 
     # ---------- 基础 ----------
     def reset(self):
-        self.effects = Graph()
-        self.retractions = Graph()
-        self.vip_params = {"spend": 5000, "min_orders": 3}
-        self.refresh()
+        with self._lock:
+            self.effects = Graph()
+            self.retractions = Graph()
+            self.vip_params = {"spend": 5000, "min_orders": 3}
+            self.refresh()
 
     def refresh(self):
         merged = Graph()
@@ -42,22 +49,19 @@ class KnowledgeBase:
         self.vip_out = apply_vip_rules(
             self.material, spend_threshold=self.vip_params["spend"],
             min_orders=self.vip_params["min_orders"])
-        rule_input = Graph()
-        for t in self.material:
-            rule_input.add(t)
-        for t in self.vip_out:
-            rule_input.add(t)
+        rule_input = self.material + self.vip_out
         self.actions, self.action_reasons = apply_action_rules(rule_input)
 
     # ---------- 场景 1：供应风险传导 ----------
     def supplier_risk(self, supplier, delayed: bool) -> dict:
-        triple = (supplier, EX.status, Literal("delayed"))
-        if delayed:
-            self.effects.add(triple)
-        else:
-            self.effects.remove(triple)
-        self.refresh()
-        return risk_chain(self, supplier) if delayed else self._empty_risk()
+        with self._lock:
+            triple = (supplier, EX.status, Literal("delayed"))
+            if delayed:
+                self.effects.add(triple)
+            else:
+                self.effects.remove(triple)
+            self.refresh()
+            return risk_chain(self, supplier) if delayed else self._empty_risk()
 
     @staticmethod
     def _empty_risk() -> dict:
@@ -65,18 +69,21 @@ class KnowledgeBase:
                 "pending_orders": [], "vip_customers": [], "chain": []}
 
     def risk_view(self) -> dict:
-        """当前延迟供应商的风险视图（供执行后查看风险仍在、动作已处置）。"""
-        from engine.scenarios import risk_chain
-        delayed = [s for s in self.material.subjects(EX.status, Literal("delayed"))]
+        """当前延迟供应商的风险视图（供执行后查看风险仍在、动作已处置）。
+
+        若同时有多个延迟供应商，展示字典序第一个（sorted 后取首）。
+        """
+        delayed = list(self.material.subjects(EX.status, Literal("delayed")))
         if not delayed:
             return self._empty_risk()
         return risk_chain(self, sorted(delayed, key=str)[0])
 
     # ---------- 场景 2：VIP 分类 ----------
     def vip_classification(self, spend: int, min_orders: int) -> dict:
-        self.vip_params = {"spend": int(spend), "min_orders": int(min_orders)}
-        self.refresh()
-        return vip_report(self, int(spend), int(min_orders))
+        with self._lock:
+            self.vip_params = {"spend": int(spend), "min_orders": int(min_orders)}
+            self.refresh()
+            return vip_report(self, int(spend), int(min_orders))
 
     # ---------- 场景 3：语义推荐 ----------
     def recommend(self, product) -> dict:
@@ -93,12 +100,14 @@ class KnowledgeBase:
         return out
 
     def execute(self, action_id: str) -> dict:
-        from engine.actions import execute as run
-        return run(self, action_id)
+        with self._lock:
+            from engine.actions import execute as run
+            return run(self, action_id)
 
     def execute_all(self) -> dict:
-        executed = 0
-        for act in list(self.action_reasons):
-            if self.execute(str(act).split("#")[-1])["ok"]:
-                executed += 1
-        return {"executed": executed, "remaining": len(self.list_actions())}
+        with self._lock:
+            executed = 0
+            for act in list(self.action_reasons):
+                if self.execute(str(act).split("#")[-1])["ok"]:
+                    executed += 1
+            return {"executed": executed, "remaining": len(self.list_actions())}

@@ -32,9 +32,9 @@ def test_vip_classification_reasons():
     ids = {v["id"] for v in result["vips"]}
     assert ids == {"c_zhangwei", "c_wanglei", "c_zhouyu", "c_lina", "c_chenjing"}
     reasons = {v["id"]: v["reason"] for v in result["vips"]}
-    assert "5000" in reasons["c_zhangwei"]      # 年消费路径
-    assert "3" in reasons["c_chenjing"]         # 银卡订单数路径
-    assert "4" in reasons["c_lina"]
+    assert "阈值 5000" in reasons["c_zhangwei"]   # 年消费路径
+    assert "≥ 3" in reasons["c_chenjing"]         # 银卡订单数路径
+    assert "≥ 3" in reasons["c_lina"]
 
 
 def test_recommend_contrast():

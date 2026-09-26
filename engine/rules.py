@@ -57,9 +57,10 @@ def apply_vip_rules(g: Graph, spend_threshold: int = 5000,
 #      （notified / restockRequested / promoBoosted）——效果写回后动作从清单消失。
 # 即：建议动作和推理结论一样是推论，不落库。
 # 动作规则用 SELECT 匹配情况，动作三元组、确定性 ID 与解释文本在 Python 侧组装。
-# ⚠ 执行器注意：PausePromotion 的效果必须用 graph.set 语义"先删后加"改 status，
-#    因为数据中已存在 promo ex:status "active"；若只是再加一条 "paused"，
-#    两条 status 并存，Q_PAUSE 将永远命中。
+# ⚠ 执行器注意：PausePromotion 除新增 "paused" 外必须同时撤销声明层的 "active"
+#    （data.ttl 里已写明），否则两条 status 并存，Q_PAUSE 将永远命中。
+#    实现机制见 engine/actions.py 的 EFFECTS：新增走 effects 层，撤销走 retractions 层，
+#    由 KnowledgeBase.refresh() 按 declared − retractions + effects 合并。
 
 Q_PAUSE = prepareQuery(PREFIX + """
 SELECT DISTINCT ?p ?promo WHERE {

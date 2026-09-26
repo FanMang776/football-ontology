@@ -48,4 +48,4 @@ def execute(kb, action_id: str) -> dict:
             kb.retractions.remove((s, p, o))
         kb.refresh()
         return {"ok": False, "message": "动作执行后条件未消除，已回滚"}
-    return {"ok": True, "message": info["reason"]}
+    return {"ok": True, "message": "已执行：" + info["reason"]}
