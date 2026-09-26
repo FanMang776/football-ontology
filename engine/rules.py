@@ -129,25 +129,33 @@ def apply_action_rules(g: Graph):
         reasons[act] = {"type": str(kind).split("#")[-1],
                         "targets": list(targets), "reason": reason}
 
+    # 两遍处理：先按活动聚合全部受影响商品，再逐活动生成一条建议。
+    # 覆盖同一活动的商品可能有多个（p_bt01/p_bt02/p_hub 都被 promo_618 覆盖），
+    # 若按行直接生成，解释文本取决于 SPARQL 返回顺序——跨进程不确定，故必须聚合。
+    covered: dict = {}
     for row in g.query(Q_PAUSE):
-        p, promo = row.p, row.promo
+        covered.setdefault(row.promo, []).append(label_of(row.p))
+    # rdflib 的行顺序受 URIRef 哈希随机化影响，跨进程不稳定；
+    # 商品名与活动顺序都排序后，解释文本与 reasons 序列化才逐字节确定。
+    for promo in sorted(covered, key=str):
+        products = sorted(covered[promo])
         put(_action_id("PausePromotion", promo), EX.PausePromotion, [promo],
-            f"活动「{label_of(promo)}」覆盖了延迟供应商的商品「{label_of(p)}」"
-            f"（直接推广该商品、推广其所属套装、或推广其所属品类），建议先暂停。")
+            f"活动「{label_of(promo)}」覆盖了延迟供应商供应的「{'、'.join(products)}」"
+            f"（通过直接推广、推广其所属套装、或推广其所属品类匹配），建议先暂停。")
 
-    for row in g.query(Q_NOTIFY):
+    for row in sorted(g.query(Q_NOTIFY), key=lambda r: str(r.cust)):
         cust = row.cust
         put(_action_id("NotifyCustomer", cust), EX.NotifyCustomer, [cust],
             f"VIP 客户「{label_of(cust)}」有待发货订单包含延迟供应商的商品，建议主动通知。")
 
-    for row in g.query(Q_PURCHASE):
+    for row in sorted(g.query(Q_PURCHASE), key=lambda r: str(r.p)):
         p, p2, s2 = row.p, row.p2, row.s2
         put(_action_id("CreatePurchaseOrder", p), EX.CreatePurchaseOrder, [p],
             f"「{label_of(p)}」受供应风险影响，其替代品「{label_of(p2)}」由"
             f"「{label_of(s2)}」供应——采购转向依据 substituteFor 关系。",
             extra=[(EX.hasSupplier, s2)])
 
-    for row in g.query(Q_SUBSTITUTE):
+    for row in sorted(g.query(Q_SUBSTITUTE), key=lambda r: str(r.p2)):
         p, p2 = row.p, row.p2
         put(_action_id("PromoteSubstitute", p2), EX.PromoteSubstitute, [p2],
             f"「{label_of(p)}」受供应风险影响，推荐位切换到有货的替代品「{label_of(p2)}」。")
