@@ -154,6 +154,8 @@ function fillDropdowns() {
       sup.add(new Option(n.label, n.id)));
     g.nodes.filter(n => n.cls === 'PhysicalProduct' || n.cls === 'Bundle')
       .forEach(n => prod.add(new Option(n.label, n.id)));
+    // 首访即有推荐内容：下拉框就绪后立即加载默认商品的推荐
+    loadRecommend().catch(() => { /* 切到该 Tab 时会重新加载 */ });
   }
 }
 
@@ -216,7 +218,7 @@ async function markRisk(delayed) {
       { supplier_id: sid, delayed: delayed });
     if (delayed) { renderChain(r); propagateHighlight(r); }
     else { resetRiskPanel(); clearHighlights(); await loadGraph(); }
-    toast(delayed ? '已标记延迟，风险沿本体逐层传导' : '已解除延迟，传导已清除');
+    toast(delayed ? '已标记延迟，风险沿本体逐层传导' : '已解除该供应商的延迟标记');
   } catch (e) { toast(e.message, true); }
 }
 
@@ -240,6 +242,7 @@ function resetRiskPanel() {
 }
 
 function propagateHighlight(r) {
+  if (!state.cy) return; // 无图谱（如 CDN 失败）时只展示步骤条
   stopWaves();
   clearHighlights();
   const cy = state.cy;
@@ -282,6 +285,7 @@ async function loadVip() {
       order_threshold: +$('vip-orders').value
     });
     renderVipCards(r.vips);
+    if (!state.cy) return; // 无图谱时仍渲染卡片，跳过圆环
     state.cy.nodes().removeClass('vip-ring');
     r.vips.forEach(v => {
       const n = state.cy.getElementById(v.id);
@@ -365,6 +369,7 @@ async function resetDemo() {
     await post('/api/reset');
     resetRiskPanel();
     clearHighlights();
+    closeDrawer();
     await loadGraph();
     if (state.currentTab === 'decisions') await loadActions();
     toast('演示已重置：延迟标记与执行效果均已清除');
@@ -381,7 +386,12 @@ async function openDrawer(id) {
   let e;
   try {
     e = await api('/api/entity/' + encodeURIComponent(id));
-  } catch (err) { toast(err.message, true); return; }
+  } catch (err) {
+    $('drawer-title').textContent = '加载失败';
+    $('drawer-body').innerHTML = '<p class="rec-empty">' + esc(err.message) + '</p>';
+    toast(err.message, true);
+    return;
+  }
 
   $('drawer-title').textContent = e.label;
 
@@ -417,6 +427,7 @@ function switchTab(name) {
   resetRiskPanel();
   closeDrawer();
   if (name === 'decisions') loadActions().catch(e => toast(e.message, true));
+  if (name === 'vip') loadVip().catch(e => toast(e.message, true));
 }
 
 /* ---------- 初始化 ---------- */
