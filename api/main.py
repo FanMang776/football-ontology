@@ -61,14 +61,20 @@ def graph():
 
 @app.get("/api/taxonomy")
 def taxonomy():
+    # 用声明图而非物化图：OWL-RL 闭包含自反推断（c subClassOf c），
+    # 无守卫的递归会无限爆栈；visited 兜底防环。
     children = {}
-    for s, _, o in kb.material.triples((None, RDFS.subClassOf, None)):
+    for s, _, o in kb.declared.triples((None, RDFS.subClassOf, None)):
         children.setdefault(str(o), []).append(str(s))
 
-    def build(uri):
+    def build(uri, visited=frozenset()):
+        if uri in visited:
+            return {"id": uri.split("#")[-1], "label": uri, "children": []}
+        visited = visited | {uri}
         lbl = kb.material.value(EX[uri.split("#")[-1]], RDFS.label)
         return {"id": uri.split("#")[-1], "label": str(lbl) if lbl else uri,
-                "children": [build(c) for c in sorted(children.get(uri, []))]}
+                "children": [build(c, visited)
+                             for c in sorted(children.get(uri, []))]}
 
     return build(str(EX.BusinessObject))
 

@@ -34,6 +34,19 @@ def test_actions_execute_flow():
     assert client.get("/api/actions").json() == []
 
 
+def test_taxonomy_tree():
+    r = client.get("/api/taxonomy")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["id"] == "BusinessObject"
+    child_ids = {c["id"] for c in body["children"]}
+    assert {"Product", "Party", "Order", "Action"} <= child_ids
+    # 品类树挂在 Product 下
+    product = next(c for c in body["children"] if c["id"] == "Product")
+    product_child_ids = {c["id"] for c in product["children"]}
+    assert "PhysicalProduct" in product_child_ids and "cat_electronics" in product_child_ids
+
+
 def test_unknown_supplier_404():
     r = client.post("/api/scenario/supplier-risk",
                     json={"supplier_id": "sup_nope", "delayed": True})
