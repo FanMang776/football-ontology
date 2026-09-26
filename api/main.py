@@ -4,13 +4,22 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from rdflib import RDF, RDFS
+from rdflib import RDF, RDFS, Literal
 
 from engine.knowledge_base import KnowledgeBase
 from engine.namespaces import EX
 
 app = FastAPI(title="电商本体论 Demo")
 kb = KnowledgeBase()
+
+OWL = "http://www.w3.org/2002/07/owl#"
+
+
+def _cls_of(node) -> str:
+    """声明类型的短名（按 URI 排序取首个，排除 owl: 词表）；类节点回退 "Class"。"""
+    types = sorted(str(t) for t in kb.declared.objects(node, RDF.type)
+                   if not str(t).startswith(OWL))
+    return types[0].split("#")[-1] if types else "Class"
 
 
 def _resolve(kind: str, local: str):
@@ -42,10 +51,9 @@ def graph():
         key = str(n)
         if key not in nodes:
             lbl = kb.material.value(n, RDFS.label)
-            cls = kb.material.value(n, RDF.type)
             nodes[key] = {"id": key.split("#")[-1],
                           "label": str(lbl) if lbl else key.split("#")[-1],
-                          "cls": str(cls).split("#")[-1] if cls else "?"}
+                          "cls": _cls_of(n)}
 
     for s, p, o in kb.material:
         if (p in shown and str(s).startswith(str(EX))
@@ -69,7 +77,8 @@ def taxonomy():
 
     def build(uri, visited=frozenset()):
         if uri in visited:
-            return {"id": uri.split("#")[-1], "label": uri, "children": []}
+            return {"id": uri.split("#")[-1], "label": uri.split("#")[-1],
+                    "children": []}
         visited = visited | {uri}
         lbl = kb.material.value(EX[uri.split("#")[-1]], RDFS.label)
         return {"id": uri.split("#")[-1], "label": str(lbl) if lbl else uri,
@@ -83,13 +92,23 @@ def taxonomy():
 def entity(eid: str):
     node = _resolve("实体", eid)
     declared, inferred = [], []
+
+    def render(o):
+        """字面量取词法值，EX 内 URI 取短名，其余原样字符串。"""
+        if isinstance(o, Literal):
+            return str(o), True
+        s = str(o)
+        return (s.split("#")[-1], False) if s.startswith(str(EX)) else (s, False)
+
     for s, p, o in kb.material.triples((node, None, None)):
-        obj = str(o).split("#")[-1] if str(o).startswith(str(EX)) else o.n3()
-        text = f"{str(p).split('#')[-1]}  →  {obj}"
-        (declared if (s, p, o) in kb.declared else inferred).append(text)
+        obj, is_literal = render(o)
+        item = {"p": str(p).split("#")[-1], "o": obj, "is_literal": is_literal}
+        (declared if (s, p, o) in kb.declared else inferred).append(item)
+    key = lambda it: (it["p"], str(it["o"]))
     lbl = kb.material.value(node, RDFS.label)
     return {"id": eid, "label": str(lbl) if lbl else eid,
-            "declared": sorted(declared), "inferred": sorted(inferred)}
+            "declared": sorted(declared, key=key),
+            "inferred": sorted(inferred, key=key)}
 
 
 @app.post("/api/scenario/supplier-risk")
