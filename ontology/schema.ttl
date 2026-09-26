@@ -7,6 +7,7 @@
 ########################
 ex:BusinessObject a owl:Class ; rdfs:label "业务对象"@zh .
 ex:Product  rdfs:subClassOf ex:BusinessObject ; rdfs:label "商品"@zh .
+ex:PhysicalProduct rdfs:subClassOf ex:Product ; rdfs:label "实体商品"@zh .
 ex:Bundle   rdfs:subClassOf ex:Product ; rdfs:label "捆绑套装"@zh .
 ex:Party    rdfs:subClassOf ex:BusinessObject ; rdfs:label "参与方"@zh .
 ex:Supplier rdfs:subClassOf ex:Party ; rdfs:label "供应商"@zh .
