@@ -103,6 +103,19 @@ def test_taxonomy_survives_reflexive_cycle():
         kb.declared.remove(reflexive)
 
 
+def test_risk_view_endpoint_restores_state():
+    client.post("/api/reset")
+    assert client.get("/api/scenario/risk").json()["supplier"] is None
+    client.post("/api/scenario/supplier-risk",
+                json={"supplier_id": "sup_shengke", "delayed": True})
+    body = client.get("/api/scenario/risk").json()
+    assert body["supplier"] == "sup_shengke"
+    assert body["chain"][0]["count"] == 3
+    client.post("/api/scenario/supplier-risk",
+                json={"supplier_id": "sup_shengke", "delayed": False})
+    assert client.get("/api/scenario/risk").json()["supplier"] is None
+
+
 def test_unknown_supplier_404():
     r = client.post("/api/scenario/supplier-risk",
                     json={"supplier_id": "sup_nope", "delayed": True})

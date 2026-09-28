@@ -117,6 +117,12 @@ def supplier_risk(body: RiskBody):
     return kb.supplier_risk(EX[body.supplier_id], body.delayed)
 
 
+@app.get("/api/scenario/risk")
+def risk_view():
+    """当前延迟状态的风险视图：前端切页/刷新后由此重建传导链与高亮。"""
+    return kb.risk_view()
+
+
 @app.post("/api/scenario/vip")
 def vip(body: VipBody):
     return kb.vip_classification(body.spend_threshold, body.order_threshold)

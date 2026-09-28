@@ -308,6 +308,25 @@ function propagateHighlight(r) {
   }, WAVE_MS);
 }
 
+/* 延迟标记是 effects 层事实，传导链与高亮都是它的推论：
+   切页/刷新后不靠前端记忆，而是从后端重建。 */
+async function loadRisk() {
+  try {
+    const r = await api('/api/scenario/risk');
+    if (r.chain.length) {
+      const sup = $('supplier-select');
+      if (r.supplier && sup.querySelector('option[value="' + r.supplier + '"]')) {
+        sup.value = r.supplier;
+      }
+      renderChain(r);
+      propagateHighlight(r);
+    } else {
+      resetRiskPanel();
+      clearHighlights();
+    }
+  } catch (e) { toast(e.message, true); }
+}
+
 /* ---------- Tab 三：客户分类 ---------- */
 
 let vipTimer = null;
@@ -378,6 +397,7 @@ function onRecListClick(ev) {
 async function loadActions() {
   const list = await api('/api/actions');
   const box = $('actions-list');
+  $('btn-execute-all').disabled = !list.length;
   if (!list.length) {
     box.innerHTML = '<div class="empty">没有待处置的建议动作——<br>执行效果已写回图谱，重新推理后建议自动消失。</div>';
     return;
@@ -468,8 +488,6 @@ function switchTab(name) {
     b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.panel').forEach(p =>
     p.classList.toggle('active', p.id === 'panel-' + name));
-  clearHighlights();
-  resetRiskPanel();
   closeDrawer();
   if (name === 'recommend') {
     const pid = $('product-select').value;
@@ -477,6 +495,9 @@ function switchTab(name) {
   } else if (prevTab === 'recommend') {
     restoreFullGraph();
   }
+  // 高亮跟随事实而非页面：进风险页重建传导链；从推荐页离开时图元素被重建，
+  // 高亮类随之丢失，同样从后端事实重放
+  if (name === 'risk' || prevTab === 'recommend') loadRisk();
   if (name === 'decisions') loadActions().catch(e => toast(e.message, true));
   if (name === 'vip') loadVip().catch(e => toast(e.message, true));
 }
@@ -529,6 +550,8 @@ async function init() {
     $('cy-loading').textContent = '图谱加载失败';
     toast(e.message, true);
   }
+  // F5/重开后恢复：若 effects 层仍有延迟标记，重建传导链与高亮
+  loadRisk();
 }
 
 document.addEventListener('DOMContentLoaded', init);

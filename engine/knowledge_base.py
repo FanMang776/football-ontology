@@ -65,7 +65,7 @@ class KnowledgeBase:
 
     @staticmethod
     def _empty_risk() -> dict:
-        return {"products": [], "bundles": [], "promotions": [],
+        return {"supplier": None, "products": [], "bundles": [], "promotions": [],
                 "pending_orders": [], "vip_customers": [], "chain": []}
 
     def risk_view(self) -> dict:
@@ -73,10 +73,14 @@ class KnowledgeBase:
 
         若同时有多个延迟供应商，展示字典序第一个（sorted 后取首）。
         """
-        delayed = list(self.material.subjects(EX.status, Literal("delayed")))
-        if not delayed:
-            return self._empty_risk()
-        return risk_chain(self, sorted(delayed, key=str)[0])
+        with self._lock:
+            delayed = list(self.material.subjects(EX.status, Literal("delayed")))
+            if not delayed:
+                return self._empty_risk()
+            supplier = sorted(delayed, key=str)[0]
+            out = risk_chain(self, supplier)
+            out["supplier"] = _id(supplier)
+            return out
 
     # ---------- 场景 2：VIP 分类 ----------
     def vip_classification(self, spend: int, min_orders: int) -> dict:
