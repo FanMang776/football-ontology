@@ -33,7 +33,12 @@ const EDGE_DECLARED = '#cbd5e1';
 const EDGE_INFERRED = '#7dd3fc';
 const WAVE_MS = 400;
 
-const state = { graph: null, cy: null, currentTab: 'overview', waveTimer: null };
+/* 语义推荐子图：与选中商品直接相连、值得展示的谓词（推荐可解释边 + 套装组成） */
+const FOCUS_PREDS = ['suppliedBy', 'isComponentOf', 'promotes', 'substituteFor',
+  'compatibleWith', 'sameSeries', 'hasPart'];
+
+const state = { graph: null, cy: null, currentTab: 'overview', waveTimer: null,
+  filtered: false };
 
 /* ---------- 基础设施 ---------- */
 
@@ -188,6 +193,42 @@ function buildLegend() {
   });
 }
 
+/* ---------- 语义推荐子图 ---------- */
+
+function focusSubgraph(pid) {
+  const g = state.graph;
+  const keep = new Set([pid]);
+  const edges = g.edges.filter(e => {
+    if ((e.s === pid || e.o === pid) && FOCUS_PREDS.indexOf(e.p) < 0) return false;
+    if (e.s !== pid && e.o !== pid) return false;
+    keep.add(e.s);
+    keep.add(e.o);
+    return true;
+  });
+  return { nodes: g.nodes.filter(n => keep.has(n.id)), edges: edges };
+}
+
+function renderFocusSubgraph(pid) {
+  if (!state.cy) return; // 无图谱（如 CDN 失败）时只展示推荐列表
+  state.filtered = true;
+  state.cy.batch(() => {
+    state.cy.elements().remove();
+    state.cy.add(graphElements(focusSubgraph(pid)));
+  });
+  runLayout(true);
+}
+
+function restoreFullGraph() {
+  if (!state.filtered) return;
+  state.filtered = false;
+  if (!state.cy) return;
+  state.cy.batch(() => {
+    state.cy.elements().remove();
+    state.cy.add(graphElements(state.graph));
+  });
+  updateStats();
+}
+
 /* ---------- 高亮管理 ---------- */
 
 function stopWaves() {
@@ -321,6 +362,8 @@ async function loadRecommend() {
       ? r.semantic.map(x => '<li data-id="' + esc(x.id) + '"><span class="rel-badge">' +
           esc(x.relation_label) + '</span>' + esc(x.label) + '</li>').join('')
       : '<li class="rec-empty">无推荐</li>';
+    // 只在推荐页可见时换子图；首访预加载（停在总览页）不动图
+    if (state.currentTab === 'recommend') renderFocusSubgraph(pid);
   } catch (e) { toast(e.message, true); }
 }
 
@@ -371,6 +414,7 @@ async function resetDemo() {
     clearHighlights();
     closeDrawer();
     await loadGraph();
+    if (state.currentTab === 'recommend') await loadRecommend();
     if (state.currentTab === 'decisions') await loadActions();
     toast('演示已重置：延迟标记与执行效果均已清除');
   } catch (e) { toast(e.message, true); }
@@ -418,6 +462,7 @@ function closeDrawer() { $('drawer').classList.remove('open'); }
 /* ---------- Tab 切换 ---------- */
 
 function switchTab(name) {
+  const prevTab = state.currentTab;
   state.currentTab = name;
   document.querySelectorAll('#tabs .tab').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === name));
@@ -426,6 +471,12 @@ function switchTab(name) {
   clearHighlights();
   resetRiskPanel();
   closeDrawer();
+  if (name === 'recommend') {
+    const pid = $('product-select').value;
+    if (pid) renderFocusSubgraph(pid);
+  } else if (prevTab === 'recommend') {
+    restoreFullGraph();
+  }
   if (name === 'decisions') loadActions().catch(e => toast(e.message, true));
   if (name === 'vip') loadVip().catch(e => toast(e.message, true));
 }
