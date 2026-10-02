@@ -44,7 +44,12 @@ const EDGE_DECLARED = '#cbd5e1';
 const EDGE_INFERRED = '#7dd3fc';
 const WAVE_MS = 400;
 
-const state = { graph: null, cy: null, currentTab: 'overview', waveTimer: null };
+/* 语义推荐子图：与选中商品直接相连、值得展示的谓词（推荐可解释边 + 套装组成） */
+const FOCUS_PREDS = ['suppliedBy', 'isComponentOf', 'promotes', 'substituteFor',
+  'compatibleWith', 'sameSeries', 'hasPart'];
+
+const state = { graph: null, cy: null, currentTab: 'overview', waveTimer: null,
+  filtered: false };
 
 /* ---------- 基础设施 ---------- */
 
@@ -203,6 +208,42 @@ function buildLegend() {
   });
 }
 
+/* ---------- 语义推荐子图 ---------- */
+
+function focusSubgraph(pid) {
+  const g = state.graph;
+  const keep = new Set([pid]);
+  const edges = g.edges.filter(e => {
+    if ((e.s === pid || e.o === pid) && FOCUS_PREDS.indexOf(e.p) < 0) return false;
+    if (e.s !== pid && e.o !== pid) return false;
+    keep.add(e.s);
+    keep.add(e.o);
+    return true;
+  });
+  return { nodes: g.nodes.filter(n => keep.has(n.id)), edges: edges };
+}
+
+function renderFocusSubgraph(pid) {
+  if (!state.cy) return; // 无图谱（如 CDN 失败）时只展示推荐列表
+  state.filtered = true;
+  state.cy.batch(() => {
+    state.cy.elements().remove();
+    state.cy.add(graphElements(focusSubgraph(pid)));
+  });
+  runLayout(true);
+}
+
+function restoreFullGraph() {
+  if (!state.filtered) return;
+  state.filtered = false;
+  if (!state.cy) return;
+  state.cy.batch(() => {
+    state.cy.elements().remove();
+    state.cy.add(graphElements(state.graph));
+  });
+  updateStats();
+}
+
 /* ---------- 高亮管理 ---------- */
 
 function stopWaves() {
@@ -312,6 +353,7 @@ function onPlayerCardClick(ev) {
 async function loadActions() {
   const list = await api('/api/actions');
   const box = $('actions-list');
+  $('btn-execute-all').disabled = !list.length;
   if (!list.length) {
     box.innerHTML = '<div class="empty">没有待处置的建议动作——<br>执行效果已写回图谱，重新推理后建议自动消失。</div>';
     return;
@@ -433,6 +475,7 @@ function closeDrawer() { $('drawer').classList.remove('open'); }
 /* ---------- Tab 切换 ---------- */
 
 function switchTab(name) {
+  const prevTab = state.currentTab;
   state.currentTab = name;
   document.querySelectorAll('#tabs .tab').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === name));
@@ -493,6 +536,8 @@ async function init() {
     $('cy-loading').textContent = '图谱加载失败';
     toast(e.message, true);
   }
+  // F5/重开后恢复：若 effects 层仍有延迟标记，重建传导链与高亮
+  loadRisk();
 }
 
 document.addEventListener('DOMContentLoaded', init);
