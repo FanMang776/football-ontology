@@ -49,7 +49,7 @@ const FOCUS_PREDS = ['suppliedBy', 'isComponentOf', 'promotes', 'substituteFor',
   'compatibleWith', 'sameSeries', 'hasPart'];
 
 const state = { graph: null, cy: null, currentTab: 'overview', waveTimer: null,
-  filtered: false };
+  filtered: false, graphFilters: null };
 
 /* ---------- 基础设施 ---------- */
 
@@ -139,13 +139,59 @@ function cyStylesheet() {
 }
 
 function graphElements(g) {
-  return g.nodes.map(n => ({
+  // 类别过滤：只有勾选类别的节点入图（边要求两端都可见）
+  const nodes = g.nodes.filter(n => state.graphFilters.has(nodeCategory(n.cls)));
+  const ids = new Set(nodes.map(n => n.id));
+  return nodes.map(n => ({
     group: 'nodes',
     data: { id: n.id, label: n.label, cls: n.cls, color: nodeColor(n.cls) }
-  })).concat(g.edges.map((e, i) => ({
+  })).concat(g.edges.filter(e => ids.has(e.s) && ids.has(e.o)).map((e, i) => ({
     group: 'edges',
     data: { id: 'e' + i, source: e.s, target: e.o, inferred: !!e.inferred }
   })));
+}
+
+/* ---------- 类别过滤开关 ---------- */
+
+function nodeCategory(cls) {
+  if (cls === 'Contract' || cls === 'TrainingSession' || cls === 'InjuryRecord' ||
+      cls === 'Match' || cls === 'Club' || cls === 'Class') return cls;
+  return 'Player';                       // 位置类 / YouthPlayer 等都归入"球员"
+}
+
+const FILTER_ZH = {
+  Player: '球员', Club: '俱乐部', Class: '类（TBox）', Match: '比赛',
+  Contract: '合同', TrainingSession: '训练课', InjuryRecord: '伤病记录'
+};
+
+function buildFilters() {
+  const box = $('cy-filters');
+  // 合同和训练课是纯数量噪声，默认不勾；其余默认显示
+  state.graphFilters = new Set(Object.keys(FILTER_ZH)
+    .filter(c => c !== 'Contract' && c !== 'TrainingSession'));
+  Object.keys(FILTER_ZH).forEach(cat => {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = state.graphFilters.has(cat);
+    input.addEventListener('change', () => {
+      if (input.checked) state.graphFilters.add(cat);
+      else state.graphFilters.delete(cat);
+      applyGraphFilter();
+    });
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(FILTER_ZH[cat]));
+    box.appendChild(label);
+  });
+}
+
+function applyGraphFilter() {
+  if (!state.cy || !state.graph) return;
+  state.cy.batch(() => {
+    state.cy.elements().remove();
+    state.cy.add(graphElements(state.graph));
+  });
+  runLayout(false);
 }
 
 function runLayout(animate) {
@@ -154,9 +200,9 @@ function runLayout(animate) {
         name: 'fcose', animate: false,   // 动画模式下 layoutstop 时机不可靠，fit 会丢
         animationDuration: 900,
         randomize: true, padding: 60,
-        nodeSeparation: 110,      // 节点间距：越大越散
-        idealEdgeLength: 70,      // 边理想长度
-        nodeRepulsion: 7000,
+        nodeSeparation: 160,      // 节点间距：越大越散
+        idealEdgeLength: 110,     // 边理想长度
+        nodeRepulsion: 15000,
         edgeElasticity: 0.45,
         numIter: 2500
       }
@@ -168,9 +214,15 @@ function runLayout(animate) {
         gravity: 0.4, numIter: 2000, nestingFactor: 1.2
       };
   const layout = state.cy.layout(opts);
-  layout.one('layoutstop', () => state.cy.fit(undefined, 60));   // 显式适配视口
+  // 布局后不硬 fit 全图：先适配，再把 zoom 收到 0.75 上限——
+  // 初始停留在核心区（字号 ~20px 可读），边缘靠拖拽，避免整体缩成蚂蚁
+  const settle = () => {
+    state.cy.fit(undefined, 60);
+    if (state.cy.zoom() > 0.75) { state.cy.zoom(0.75); state.cy.center(); }
+  };
+  layout.one('layoutstop', settle);
   layout.run();
-  state.cy.fit(undefined, 60);   // 无动画布局 layoutstop 同步触发，双保险
+  settle();   // 无动画布局 layoutstop 同步触发，双保险
 }
 
 function updateStats() {
@@ -212,6 +264,22 @@ async function loadGraph(opts) {
   if (Object.keys(prev).length === 0) runLayout(animate);
   updateStats();
   fillDropdowns();
+}
+
+/* ---------- 点击聚焦邻域 ---------- */
+
+function focusNeighborhood(node) {
+  // 只亮目标的一跳邻域（节点 + 与目标直连的边），其余淡化
+  state.cy.batch(() => {
+    state.cy.elements().addClass('dimmed');
+    node.removeClass('dimmed');
+    node.connectedEdges().removeClass('dimmed');
+    node.connectedEdges().connectedNodes().removeClass('dimmed');
+  });
+}
+
+function clearFocus() {
+  state.cy.elements().removeClass('dimmed');
 }
 
 function buildLegend() {
@@ -548,6 +616,7 @@ function bind() {
 
 async function init() {
   buildLegend();
+  buildFilters();
   bind();
   if (typeof cytoscape === 'undefined') {
     $('cy-loading').textContent = 'Cytoscape.js 加载失败，请检查网络';
@@ -562,8 +631,13 @@ async function init() {
     minZoom: 0.2, maxZoom: 2.5
   });
   window.__cy = state.cy;   // 调试句柄（也可用于浏览器端测试）
-  state.cy.on('tap', 'node', evt => openDrawer(evt.target.id()));
-  state.cy.on('tap', ev => { if (ev.target === state.cy) closeDrawer(); });
+  state.cy.on('tap', 'node', evt => {
+    focusNeighborhood(evt.target);
+    openDrawer(evt.target.id());
+  });
+  state.cy.on('tap', ev => {
+    if (ev.target === state.cy) { clearFocus(); closeDrawer(); }
+  });
   try {
     await loadGraph({ animate: true });
     $('cy-loading').classList.add('done');
