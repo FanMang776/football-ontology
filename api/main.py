@@ -17,11 +17,26 @@ kb = KnowledgeBase()
 OWL = "http://www.w3.org/2002/07/owl#"
 
 
+def _specificity(cls, seen=frozenset()) -> int:
+    """subClassOf 链长度（越深越具体），用于多重类型时选最具体的一个。"""
+    sups = [s for s in kb.declared.objects(cls, RDFS.subClassOf)
+            if s != cls and s not in seen]
+    return 1 + max((_specificity(s, seen | {cls}) for s in sups), default=0)
+
+
 def _cls_of(node) -> str:
-    """声明类型的短名（按 URI 排序取首个，排除 owl: 词表）；类节点回退 "Class"。"""
+    """声明类型中最具体者的短名（排除 owl: 词表）；无类型节点回退 "Class"。
+
+    不能按 URI 字母序取首个：Striker 与 Player 双重类型会取到 Player
+    （P < S），前端配色表查不到就整片回退白色。取 subClassOf 链最深者，
+    同深（如位置类与 YouthPlayer）按字母序兜底。
+    """
     types = sorted(str(t) for t in kb.declared.objects(node, RDF.type)
                    if not str(t).startswith(OWL))
-    return types[0].split("#")[-1] if types else "Class"
+    if not types:
+        return "Class"
+    best = max(types, key=lambda t: _specificity(EX[t.split("#")[-1]]))
+    return best.split("#")[-1]
 
 
 def _resolve(kind: str, local: str):
