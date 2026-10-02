@@ -104,14 +104,14 @@ function nodeColor(cls) { return CLASS_COLORS[cls] || '#f1f0ea'; }
 function cyStylesheet() {
   const st = [
     { selector: 'node', style: {
-      label: 'data(label)', 'font-size': 10, 'font-family': 'sans-serif',
-      color: '#475569', 'text-valign': 'bottom', 'text-margin-y': 4,
-      width: 22, height: 22, shape: 'ellipse',
+      label: 'data(label)', 'font-size': 14, 'font-family': 'sans-serif',
+      color: '#475569', 'text-valign': 'bottom', 'text-margin-y': 6,
+      width: 32, height: 32, shape: 'ellipse',
       'background-color': 'data(color)',
       'border-width': 1, 'border-color': 'rgba(31,41,55,0.18)'
     } },
     { selector: 'node[cls = "Class"]', style: {
-      shape: 'round-rectangle', width: 26, height: 20,
+      shape: 'round-rectangle', width: 38, height: 28,
       'border-color': '#cfcabb'
     } },
     { selector: 'edge', style: {
@@ -151,7 +151,8 @@ function graphElements(g) {
 function runLayout(animate) {
   const opts = typeof cytoscapeFcose !== 'undefined'
     ? { // fcose：力导布局里间距质量最好
-        name: 'fcose', animate: !!animate, animationDuration: 900,
+        name: 'fcose', animate: false,   // 动画模式下 layoutstop 时机不可靠，fit 会丢
+        animationDuration: 900,
         randomize: true, padding: 60,
         nodeSeparation: 220,      // 节点间距：越大越散
         idealEdgeLength: 160,     // 边理想长度
@@ -160,13 +161,16 @@ function runLayout(animate) {
         numIter: 2500
       }
     : { // 回退：原生 cose
-        name: 'cose', animate: !!animate, animationDuration: 900,
+        name: 'cose', animate: false, animationDuration: 900,
         randomize: true, padding: 60,
         nodeOverlap: 60, nodeRepulsion: 16000,
         idealEdgeLength: 110, edgeElasticity: 0.45,
         gravity: 0.4, numIter: 2000, nestingFactor: 1.2
       };
-  state.cy.layout(opts).run();
+  const layout = state.cy.layout(opts);
+  layout.one('layoutstop', () => state.cy.fit(undefined, 60));   // 显式适配视口
+  layout.run();
+  state.cy.fit(undefined, 60);   // 无动画布局 layoutstop 同步触发，双保险
 }
 
 function updateStats() {
@@ -542,6 +546,7 @@ async function init() {
     wheelSensitivity: 0.2,
     minZoom: 0.2, maxZoom: 2.5
   });
+  window.__cy = state.cy;   // 调试句柄（也可用于浏览器端测试）
   state.cy.on('tap', 'node', evt => openDrawer(evt.target.id()));
   state.cy.on('tap', ev => { if (ev.target === state.cy) closeDrawer(); });
   try {
