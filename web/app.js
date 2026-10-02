@@ -367,7 +367,6 @@ function onPlayerCardClick(ev) {
 async function loadActions() {
   const list = await api('/api/actions');
   const box = $('actions-list');
-  $('btn-execute-all').disabled = !list.length;
   if (!list.length) {
     box.innerHTML = '<div class="empty">没有待处置的建议动作——<br>执行效果已写回图谱，重新推理后建议自动消失。</div>';
     return;
