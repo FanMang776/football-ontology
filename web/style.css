@@ -772,3 +772,10 @@ input[type="range"] {
   font-size: 12px; background: #eef2f6; padding: 2px 8px;
   border-radius: 6px; color: #3b82c4;
 }
+
+.btn-relayout {
+  margin-left: auto;
+  border: 1px solid #cfcabb; background: #fff; color: #64748b;
+  border-radius: 8px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+}
+.btn-relayout:hover { border-color: #3b82c4; color: #3b82c4; }

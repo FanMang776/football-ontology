@@ -6,6 +6,9 @@
 <title>足球本体世界 · 会感知、会计算、会行动的业务对象</title>
 <link rel="stylesheet" href="/style.css">
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.min.js"></script>
+<script src="/vendor/layout-base.min.js"></script>
+<script src="/vendor/cose-base.min.js"></script>
+<script src="/vendor/cytoscape-fcose.min.js"></script>
 </head>
 <body>
 
@@ -30,6 +33,7 @@
     <div class="canvas-legend">
       <span class="lg-item"><span class="lg-line solid"></span>声明的事实</span>
       <span class="lg-item"><span class="lg-line dashed"></span>推理得出（OWL-RL）</span>
+      <button class="btn-relayout" id="btn-relayout" title="重新散开节点">重新布局</button>
     </div>
     <div id="cy-loading" class="cy-loading">正在加载图谱…</div>
   </section>

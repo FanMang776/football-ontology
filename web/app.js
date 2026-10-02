@@ -149,10 +149,24 @@ function graphElements(g) {
 }
 
 function runLayout(animate) {
-  state.cy.layout({
-    name: 'cose', animate: !!animate, animationDuration: 900,
-    randomize: true, padding: 40, nodeOverlap: 12
-  }).run();
+  const opts = typeof cytoscapeFcose !== 'undefined'
+    ? { // fcose：力导布局里间距质量最好
+        name: 'fcose', animate: !!animate, animationDuration: 900,
+        randomize: true, padding: 60,
+        nodeSeparation: 220,      // 节点间距：越大越散
+        idealEdgeLength: 160,     // 边理想长度
+        nodeRepulsion: 40000,
+        edgeElasticity: 0.45,
+        numIter: 2500
+      }
+    : { // 回退：原生 cose
+        name: 'cose', animate: !!animate, animationDuration: 900,
+        randomize: true, padding: 60,
+        nodeOverlap: 60, nodeRepulsion: 16000,
+        idealEdgeLength: 110, edgeElasticity: 0.45,
+        gravity: 0.4, numIter: 2000, nestingFactor: 1.2
+      };
+  state.cy.layout(opts).run();
 }
 
 function updateStats() {
@@ -497,6 +511,7 @@ function bind() {
     if (btn) switchTab(btn.dataset.tab);
   });
   $('drawer-close').addEventListener('click', closeDrawer);
+  $('btn-relayout').addEventListener('click', () => runLayout(true));
   $('event-type').addEventListener('change', onEventTypeChange);
   $('btn-send-event').addEventListener('click', sendEvent);
   $('fitness-floor').addEventListener('input', onFloorSlider);
@@ -521,6 +536,7 @@ async function init() {
     toast('Cytoscape.js 未能从 CDN 加载，图谱无法渲染', true);
     return;
   }
+  if (typeof cytoscapeFcose !== 'undefined') cytoscape.use(cytoscapeFcose);
   state.cy = cytoscape({
     container: $('cy'),
     style: cyStylesheet(),
@@ -536,8 +552,6 @@ async function init() {
     $('cy-loading').textContent = '图谱加载失败';
     toast(e.message, true);
   }
-  // F5/重开后恢复：若 effects 层仍有延迟标记，重建传导链与高亮
-  loadRisk();
 }
 
 document.addEventListener('DOMContentLoaded', init);

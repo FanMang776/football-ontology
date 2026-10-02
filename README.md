@@ -26,7 +26,7 @@ python -m uvicorn api.main:app --reload
 # 打开 http://127.0.0.1:8000
 ```
 
-浏览器需要联网加载 Cytoscape.js CDN（图谱可视化用），离线时其余 Tab 正常、图谱画布空白。
+浏览器需要联网加载 Cytoscape.js 核心（CDN）；力导布局脚本（fcose 及其依赖）已本地化在 `web/vendor/`，离线时图谱仍可渲染、自动回退无扩展模式。
 
 命令行学习路径（不需要启动服务）：
 
