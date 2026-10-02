@@ -104,14 +104,14 @@ function nodeColor(cls) { return CLASS_COLORS[cls] || '#f1f0ea'; }
 function cyStylesheet() {
   const st = [
     { selector: 'node', style: {
-      label: 'data(label)', 'font-size': 14, 'font-family': 'sans-serif',
-      color: '#475569', 'text-valign': 'bottom', 'text-margin-y': 6,
-      width: 32, height: 32, shape: 'ellipse',
+      label: 'data(label)', 'font-size': 26, 'font-family': 'sans-serif',
+      color: '#475569', 'text-valign': 'bottom', 'text-margin-y': 10,
+      width: 52, height: 52, shape: 'ellipse',
       'background-color': 'data(color)',
       'border-width': 1, 'border-color': 'rgba(31,41,55,0.18)'
     } },
     { selector: 'node[cls = "Class"]', style: {
-      shape: 'round-rectangle', width: 38, height: 28,
+      shape: 'round-rectangle', width: 62, height: 46,
       'border-color': '#cfcabb'
     } },
     { selector: 'edge', style: {
@@ -154,9 +154,9 @@ function runLayout(animate) {
         name: 'fcose', animate: false,   // 动画模式下 layoutstop 时机不可靠，fit 会丢
         animationDuration: 900,
         randomize: true, padding: 60,
-        nodeSeparation: 220,      // 节点间距：越大越散
-        idealEdgeLength: 160,     // 边理想长度
-        nodeRepulsion: 40000,
+        nodeSeparation: 110,      // 节点间距：越大越散
+        idealEdgeLength: 70,      // 边理想长度
+        nodeRepulsion: 7000,
         edgeElasticity: 0.45,
         numIter: 2500
       }
@@ -325,8 +325,23 @@ function renderEventReport(r) {
         (c.old === null ? '–' : c.old) + ' → ' + c.new + '</div>';
     });
   }
-  html += '<p class="chain-title">建议清单刷新为 ' + r.suggestions.length +
-    ' 条（见决策中心）</p></div>';
+  // 建议是推论：本次事件的目标球员未必触发条目，把"触发了几条"说清楚，
+  // 否则"清单共 N 条"会被读成"本次事件产生了 N 条建议"。
+  const nodeName = () => {
+    const n = (state.graph && state.graph.nodes.find(x => x.id === r.event.target)) || null;
+    return n ? '「' + n.label + '」' : '';
+  };
+  const mine = r.event.target
+    ? r.suggestions.filter(s => (s.targets || []).some(t => t.id === r.event.target))
+    : [];
+  if (mine.length) {
+    html += '<p class="chain-title">' + nodeName() + '触发 ' + mine.length +
+      ' 条建议（见决策中心）；全球建议清单共 ' + r.suggestions.length + ' 条</p></div>';
+  } else {
+    html += '<p class="chain-title">' + nodeName() + '本次未触发任何建议' +
+      '（建议是推论，条件未过就不产生）；全球建议清单共 ' + r.suggestions.length +
+      ' 条</p></div>';
+  }
   box.innerHTML = html;
   if (state.cy && r.event.target) {
     const n = state.cy.getElementById(r.event.target);
