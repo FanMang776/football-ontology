@@ -48,10 +48,10 @@
   声明属性 `playsFor(Player→Club)`、`hasContract(Player→Contract)`、`contractYears(Contract→int)`、`hasPosition(Player→最细位置)`、`participatesIn(Player→Match)`、`minutesPlayed(Player→int，挂边)`、`matchday(Match→int)`、`injuredWith(Player→InjuryRecord)`、`weeksOut(InjuryRecord→int)`、`trainsIn(Player→TrainingSession)`、`load(TrainingSession→int)`、`squadOf(YouthPlayer→Club)`。
   状态属性（Task 3 写入，schema 声明）：`fitness(Player→int)`、`restGiven(Player→bool)`、`calledUp(Player→bool)`、`treated(Player→bool)`、`vetoed(动作→bool)`。
   动作类：`RestPlayer / CallUpYouth / StartTreatment`。
-- Produces: 数据集（data.ttl 全量声明）：
+- Produces: 数据集（data.ttl 全量声明；**IRI id 用 p_gk1 等中性短名，label 用知名球员中文名；阵容为虚构编排，README 已知限制注明**）：
   俱乐部 `club_star`（label「启明星 FC」）。
-  一线队 14 人：GK×2（`p_gk1` 张岩、`p_gk2` 李泉）、CB×2（`p_cb1` 陈盾、`p_cb2` 王垒）、FB×2（`p_fb1` 赵翼、`p_fb2` 钱奔）、DM×1（`p_dm1` 孙闸）、AM×2（`p_am1` 周锐、`p_am2` 吴核）、WG×2（`p_wg1` 郑风、`p_wg2` 冯快）、ST×3（`p_st1` 何锋、`p_st2` 许射、`p_st3` 张凌）。
-  青年队 6 人（`squadOf` 指向俱乐部、`YouthPlayer` 类型）：`p_ygk`、`p_ycb`、`p_yfb`、`p_yam1` 楚新、`p_yam2` 卫星、`p_yst`。
+  一线队 14 人：GK×2（`p_gk1` 阿利松、`p_gk2` 库尔图瓦）、CB×2（`p_cb1` 范戴克、`p_cb2` 鲁本·迪亚斯）、FB×2（`p_fb1` 阿诺德、`p_fb2` 特奥·埃尔南德斯）、DM×1（`p_dm1` 罗德里）、AM×2（`p_am1` 德布劳内、`p_am2` B费）、WG×2（`p_wg1` 维尼修斯、`p_wg2` 萨卡）、ST×3（`p_st1` 哈兰德、`p_st2` 姆巴佩、`p_st3` 凯恩）。
+  青年队 6 人（`squadOf` 指向俱乐部、`YouthPlayer` 类型）：`p_ygk` 马马达什维利、`p_ycb` 库巴西、`p_yfb` 巴尔德、`p_yam1` 亚马尔、`p_yam2` 居莱尔、`p_yst` 恩德里克。
   合同：每名一线队球员一条 Contract（`contractYears` 1–5 各异）。
   比赛 3 场（`m_d1..m_d3`，matchday 1–3）与训练 1 节（`t_w1`）。初始伤病：`p_am2 injuredWith inj_am2`，`inj_am2 weeksOut 4`，label「腿筋拉伤」。
   出场史（保证初始 fitness 有梯度）：`p_am1` 三场全踢（90/90/85，fitness=56）、`p_st1` 三场（90/75/0→只报两场 90/75）、其余球员 0–2 场、minutes ≤ 75。
@@ -675,7 +675,7 @@ git commit -m "feat: Web 五 Tab 足球化——事件流、对象卡、治理�
 
 - [ ] **Step 1: 重写四章**
 
-1. `01-本体是什么.md`：三元组与对象——用「张岩 playsFor 启明星 FC」对照关系表的 JOIN；结尾指向 `--step 1`
+1. `01-本体是什么.md`：三元组与对象——用「范戴克 playsFor 启明星 FC」对照关系表的 JOIN；结尾指向 `--step 1`
 2. `02-用能力问题建模俱乐部世界.md`：能力问题驱动（文章第七层）——先问「谁受伤会影响下场比赛？哪些球员过度使用？」，反推出需要位置树/伤停/出场史，再展示 schema.ttl 对应片段；练习：读者自己加一个位置子类
 3. `03-推理如何发生.md`：声明 vs 推断——位置泛化、YouthPlayer 归类；指向 `--step 3`
 4. `04-从状态到行动.md`：五官映射（嘴=事件接口、鼻=perceive、脑=compute 派生、手=治理动作、脚=World 运行时）；传导链逐步解释；治理三要素（前置条件/审批/审计）与 Palantir 写路径对照；指向 `--step 4`、`--step 5` 与决策中心 Tab
