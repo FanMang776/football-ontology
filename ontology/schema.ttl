@@ -1,71 +1,184 @@
-@prefix ex: <http://example.org/ecom#> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
+# 启明星 FC 俱乐部本体（TBox）
+# 心智模型：本文件只写「白纸黑字的公理」——类层级、属性的域/值域、动作类。
+# 推论（如"德布劳内是场上位置的一员"）由 OWL-RL 推理机在运行时补全，见 engine/loader.py。
+@prefix ex: <http://example.org/football#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-########################
-# 顶层类
-########################
-ex:BusinessObject a owl:Class ; rdfs:label "业务对象"@zh .
-ex:Product  rdfs:subClassOf ex:BusinessObject ; rdfs:label "商品"@zh .
-ex:PhysicalProduct rdfs:subClassOf ex:Product ; rdfs:label "实体商品"@zh .
-ex:Bundle   rdfs:subClassOf ex:Product ; rdfs:label "捆绑套装"@zh .
-ex:Party    rdfs:subClassOf ex:BusinessObject ; rdfs:label "参与方"@zh .
-ex:Supplier rdfs:subClassOf ex:Party ; rdfs:label "供应商"@zh .
-ex:Customer rdfs:subClassOf ex:Party ; rdfs:label "客户"@zh .
-# VIPCustomer 只会被规则层推断出来，数据中永远不声明
-ex:VIPCustomer rdfs:subClassOf ex:Customer ; rdfs:label "高价值客户"@zh .
-ex:Order     rdfs:subClassOf ex:BusinessObject ; rdfs:label "订单"@zh .
-ex:OrderLine rdfs:subClassOf ex:BusinessObject ; rdfs:label "订单明细"@zh .
-ex:Promotion rdfs:subClassOf ex:BusinessObject ; rdfs:label "促销活动"@zh .
+########## 类层级 ##########
 
-########################
-# 决策动作——本体不仅描述业务，也描述"可做的事"
-########################
-ex:Action              rdfs:subClassOf ex:BusinessObject ; rdfs:label "决策动作"@zh .
-ex:PausePromotion      rdfs:subClassOf ex:Action ; rdfs:label "暂停促销"@zh .
-ex:NotifyCustomer      rdfs:subClassOf ex:Action ; rdfs:label "通知客户"@zh .
-ex:CreatePurchaseOrder rdfs:subClassOf ex:Action ; rdfs:label "生成采购单"@zh .
-ex:PromoteSubstitute   rdfs:subClassOf ex:Action ; rdfs:label "推荐替代品"@zh .
+ex:FootballEntity a owl:Class ;
+    rdfs:label "足球实体"@zh .
 
-########################
-# 品类即类：品类树就是 subClassOf 树
-########################
-ex:cat_electronics a owl:Class ; rdfs:subClassOf ex:Product ; rdfs:label "电子产品"@zh .
-ex:cat_digital_acc a owl:Class ; rdfs:subClassOf ex:cat_electronics ; rdfs:label "数码配件"@zh .
-ex:cat_headphone   a owl:Class ; rdfs:subClassOf ex:cat_digital_acc ; rdfs:label "耳机"@zh .
-ex:cat_charger     a owl:Class ; rdfs:subClassOf ex:cat_digital_acc ; rdfs:label "充电设备"@zh .
-ex:cat_cable       a owl:Class ; rdfs:subClassOf ex:cat_digital_acc ; rdfs:label "线材"@zh .
-ex:cat_audio       a owl:Class ; rdfs:subClassOf ex:cat_digital_acc ; rdfs:label "音频设备"@zh .
-ex:cat_speaker     a owl:Class ; rdfs:subClassOf ex:cat_audio ; rdfs:label "音箱"@zh .
-ex:cat_home        a owl:Class ; rdfs:subClassOf ex:Product ; rdfs:label "智能家居"@zh .
-ex:cat_bulb        a owl:Class ; rdfs:subClassOf ex:cat_home ; rdfs:label "智能灯泡"@zh .
+ex:Player a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "球员"@zh .
 
-########################
-# 对象属性与公理（推理能力的来源）
-########################
-ex:suppliedBy     a owl:ObjectProperty ; rdfs:label "由…供应"@zh .
-ex:hasPart        a owl:ObjectProperty , owl:TransitiveProperty ; rdfs:label "包含"@zh .
-ex:isComponentOf  a owl:ObjectProperty ; owl:inverseOf ex:hasPart ; rdfs:label "是…的组成部分"@zh .
-ex:substituteFor  a owl:ObjectProperty , owl:SymmetricProperty ; rdfs:label "替代"@zh .
-ex:compatibleWith a owl:ObjectProperty , owl:SymmetricProperty ; rdfs:label "兼容"@zh .
-ex:sameSeries     a owl:ObjectProperty , owl:SymmetricProperty ; rdfs:label "同系列"@zh .
-ex:placedBy       a owl:ObjectProperty ; rdfs:label "下单人"@zh .
-ex:hasLine        a owl:ObjectProperty ; rdfs:label "包含明细"@zh .
-ex:lineProduct    a owl:ObjectProperty ; rdfs:label "明细商品"@zh .
-ex:promotes       a owl:ObjectProperty ; rdfs:label "推广"@zh .
-ex:hasTarget      a owl:ObjectProperty ; rdfs:label "动作目标"@zh .
-ex:hasSupplier    a owl:ObjectProperty ; rdfs:label "动作相关供应商"@zh .
+ex:YouthPlayer a owl:Class ;
+    rdfs:subClassOf ex:Player ;
+    rdfs:label "青年队球员"@zh .
 
-########################
-# 数据属性
-########################
-ex:price           a owl:DatatypeProperty ; rdfs:label "价格"@zh .
-ex:stock           a owl:DatatypeProperty ; rdfs:label "库存"@zh .
-ex:annualSpend     a owl:DatatypeProperty ; rdfs:label "年消费额"@zh .
-ex:membershipLevel a owl:DatatypeProperty ; rdfs:label "会员等级"@zh .
-ex:status          a owl:DatatypeProperty ; rdfs:label "状态"@zh .
-ex:orderStatus     a owl:DatatypeProperty ; rdfs:label "订单状态"@zh .
-ex:notified        a owl:DatatypeProperty ; rdfs:label "已通知"@zh .
-ex:restockRequested a owl:DatatypeProperty ; rdfs:label "已请求补货"@zh .
-ex:promoBoosted    a owl:DatatypeProperty ; rdfs:label "已加推"@zh .
-ex:hasReason       a owl:DatatypeProperty ; rdfs:label "动作原因"@zh .
+# 位置子类树：球员只声明最细位置，"能踢哪个大类"由 subClassOf 闭包推理。
+# 这是本项目"语义传递"教学的核心公理（对照教程第三章）。
+ex:Position a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "场上位置"@zh .
+
+ex:Goalkeeper a owl:Class ;
+    rdfs:subClassOf ex:Position ;
+    rdfs:label "门将"@zh .
+
+ex:CentreBack a owl:Class ;
+    rdfs:subClassOf ex:Position ;
+    rdfs:label "中后卫"@zh .
+
+ex:Fullback a owl:Class ;
+    rdfs:subClassOf ex:Position ;
+    rdfs:label "边后卫"@zh .
+
+ex:DefensiveMidfielder a owl:Class ;
+    rdfs:subClassOf ex:Position ;
+    rdfs:label "后腰"@zh .
+
+ex:AttackingMidfielder a owl:Class ;
+    rdfs:subClassOf ex:Position ;
+    rdfs:label "前腰"@zh .
+
+ex:Winger a owl:Class ;
+    rdfs:subClassOf ex:Position ;
+    rdfs:label "边锋"@zh .
+
+ex:Striker a owl:Class ;
+    rdfs:subClassOf ex:Position ;
+    rdfs:label "中锋"@zh .
+
+ex:Club a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "俱乐部"@zh .
+
+ex:Contract a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "合同"@zh .
+
+ex:Match a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "比赛"@zh .
+
+ex:TrainingSession a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "训练课"@zh .
+
+ex:InjuryRecord a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "伤病记录"@zh .
+
+########## 动作类（动作实例不落库，运行时由规则推论产生） ##########
+
+ex:RestPlayer a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "轮休球员"@zh .
+
+ex:CallUpYouth a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "征调青年队"@zh .
+
+ex:StartTreatment a owl:Class ;
+    rdfs:subClassOf ex:FootballEntity ;
+    rdfs:label "启动治疗"@zh .
+
+########## 声明属性 ##########
+
+ex:playsFor a owl:ObjectProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range ex:Club ;
+    rdfs:label "效力于"@zh .
+
+ex:squadOf a owl:ObjectProperty ;
+    rdfs:domain ex:YouthPlayer ;
+    rdfs:range ex:Club ;
+    rdfs:label "所属梯队"@zh .
+
+ex:hasContract a owl:ObjectProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range ex:Contract ;
+    rdfs:label "拥有合同"@zh .
+
+ex:contractYears a owl:DatatypeProperty ;
+    rdfs:domain ex:Contract ;
+    rdfs:range xsd:integer ;
+    rdfs:label "合同剩余年限"@zh .
+
+# 位置不设 hasPosition 属性：球员直接以类型成员身份挂到最细位置类上
+# （ex:德布劳内 a ex:AttackingMidfielder），"能踢哪个大类"由 subClassOf 闭包推理，
+# 这是本项目"语义传递"教学的核心公理（对照教程第三章）。
+
+ex:participatesIn a owl:ObjectProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range ex:Match ;
+    rdfs:label "参加了"@zh .
+
+# 教学简化：minutesPlayed 是球员上的多值属性，各值依次对应其参与的各场比赛
+# （RDF 不支持边属性，具名化 reification 对教学 demo 过重）。
+# 体能公式的惩罚项按该属性的值逐个求和，见 engine/objects.py。
+ex:minutesPlayed a owl:DatatypeProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range xsd:integer ;
+    rdfs:label "出场分钟"@zh .
+
+ex:matchday a owl:DatatypeProperty ;
+    rdfs:domain ex:Match ;
+    rdfs:range xsd:integer ;
+    rdfs:label "比赛日"@zh .
+
+ex:trainsIn a owl:ObjectProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range ex:TrainingSession ;
+    rdfs:label "参加了训练"@zh .
+
+ex:load a owl:DatatypeProperty ;
+    rdfs:domain ex:TrainingSession ;
+    rdfs:range xsd:integer ;
+    rdfs:label "训练负荷"@zh .
+
+ex:injuredWith a owl:ObjectProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range ex:InjuryRecord ;
+    rdfs:label "受伤记录"@zh .
+
+ex:weeksOut a owl:DatatypeProperty ;
+    rdfs:domain ex:InjuryRecord ;
+    rdfs:range xsd:integer ;
+    rdfs:label "伤停周数"@zh .
+
+########## 状态属性（值由对象运行时每次重算写入 state 层，见 engine/world.py） ##########
+
+ex:fitness a owl:DatatypeProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range xsd:integer ;
+    rdfs:label "体能"@zh .
+
+ex:restGiven a owl:DatatypeProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "已轮休"@zh .
+
+ex:calledUp a owl:DatatypeProperty ;
+    rdfs:domain ex:YouthPlayer ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "已征调"@zh .
+
+ex:treated a owl:DatatypeProperty ;
+    rdfs:domain ex:Player ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "已治疗"@zh .
+
+ex:vetoed a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "被治理规则否决"@zh .
+
+ex:hasReason a owl:ObjectProperty ;
+    rdfs:label "原因"@zh .
+
+ex:hasTarget a owl:ObjectProperty ;
+    rdfs:label "作用对象"@zh .

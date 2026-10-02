@@ -1,4 +1,4 @@
-"""验证 OWL-RL 推理：子类传递、属性传递、对称性、逆属性。"""
+"""验证 OWL-RL 推理：位置子类泛化、YouthPlayer 归类。"""
 from rdflib import RDF
 
 from engine.loader import load_declared, materialize
@@ -9,36 +9,27 @@ def kb():
     return materialize(load_declared())
 
 
-def test_subclass_chain_inferred():
-    """蓝牙耳机 BT-01 挂在 cat_headphone 上，应推断出属于全部祖先品类。"""
+def test_position_generalization_inferred():
+    """声明最细位置，祖先位置成员关系由推理补全。"""
     g = kb()
-    for cat in (EX.cat_headphone, EX.cat_digital_acc, EX.cat_electronics, EX.Product):
-        assert (EX.p_bt01, RDF.type, cat) in g
+    assert (EX.p_am1, RDF.type, EX.AttackingMidfielder) in g   # 声明
+    assert (EX.p_am1, RDF.type, EX.Position) in g              # 推断
 
 
-def test_transitive_has_part():
-    """b_ultimate hasPart b_music，b_music hasPart p_bt01 → 推断 b_ultimate hasPart p_bt01。"""
+def test_youth_player_is_player_and_position():
     g = kb()
-    assert (EX.b_ultimate, EX.hasPart, EX.p_bt01) in g
-    assert (EX.b_ultimate, EX.hasPart, EX.p_amp) in g
+    assert (EX.p_yam1, RDF.type, EX.Player) in g               # YouthPlayer ⊑ Player
+    assert (EX.p_yam1, RDF.type, EX.AttackingMidfielder) in g  # 声明
 
 
-def test_inverse_is_component_of():
-    """hasPart 的逆属性 isComponentOf 应双向物化。"""
+def test_injury_record_linked():
     g = kb()
-    assert (EX.p_bt01, EX.isComponentOf, EX.b_music) in g
-    assert (EX.p_bt01, EX.isComponentOf, EX.b_ultimate) in g
+    assert (EX.p_am2, EX.injuredWith, EX.inj_am2) in g
+    assert (EX.inj_am2, EX.weeksOut, None) in g
 
 
-def test_symmetric_substitute():
-    """只声明 p_bt01 substituteFor p_x2，应推断出反向。"""
+def test_declared_scale():
+    """青年队只有 YouthPlayer 类型，Player 计数须在物化图上（闭包补全后）。"""
     g = kb()
-    assert (EX.p_bt01, EX.substituteFor, EX.p_x2) in g          # 声明的
-    assert (EX.p_x2, EX.substituteFor, EX.p_bt01) in g          # 推断的
-
-
-def test_declared_vs_inferred_split():
-    """p_x2 substituteFor p_bt01 在原始图中不存在，在物化图中存在。"""
-    declared = load_declared()
-    assert (EX.p_x2, EX.substituteFor, EX.p_bt01) not in declared
-    assert (EX.p_x2, EX.substituteFor, EX.p_bt01) in kb()
+    players = list(g.subjects(RDF.type, EX.Player))
+    assert len(players) >= 20   # 14 一线队 + 6 青年队

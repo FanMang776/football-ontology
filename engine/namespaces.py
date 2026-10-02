@@ -1,3 +1,3 @@
 from rdflib import Namespace
 
-EX = Namespace("http://example.org/ecom#")
+EX = Namespace("http://example.org/football#")

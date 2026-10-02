@@ -1,136 +1,125 @@
-@prefix ex: <http://example.org/ecom#> .
+# 启明星 FC 俱乐部声明数据（ABox）
+# 全部是"白纸黑字写的事实"：阵容、合同、出场史、伤病。
+# 位置建模：球员以类型成员身份挂最细位置类（ex:p_am1 a ex:AttackingMidfielder），
+# 祖先位置成员关系由 subClassOf 闭包推理，不写 hasPosition 属性。
+# 阵容为教学虚构：球员名来自现实球星，比赛/体能/伤停数据均为编造。
+@prefix ex: <http://example.org/football#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-########################
-# 供应商（默认状态 active；"delayed" 由运行时动作写回，不在数据里）
-########################
-ex:sup_shengke a ex:Supplier ; rdfs:label "声科电子"@zh ; ex:status "active" .
-ex:sup_lanwan  a ex:Supplier ; rdfs:label "蓝湾制造"@zh ; ex:status "active" .
-ex:sup_xinglian a ex:Supplier ; rdfs:label "星联电子"@zh ; ex:status "active" .
-ex:sup_hongda  a ex:Supplier ; rdfs:label "宏达配件"@zh ; ex:status "active" .
-ex:sup_yunyin  a ex:Supplier ; rdfs:label "云音科技"@zh ; ex:status "active" .
-ex:sup_huijin  a ex:Supplier ; rdfs:label "汇金数码"@zh ; ex:status "active" .
+########## 俱乐部 ##########
 
-########################
-# 商品
-########################
-ex:p_bt01 a ex:PhysicalProduct ; rdfs:label "降噪蓝牙耳机 BT-01"@zh ;
-    ex:suppliedBy ex:sup_shengke ; ex:price 899 ; ex:stock 40 ;
-    a ex:cat_headphone ;
-    ex:substituteFor ex:p_x2 ;
-    ex:sameSeries ex:p_bt02 ;
-    ex:compatibleWith ex:p_amp .
-ex:p_bt02 a ex:PhysicalProduct ; rdfs:label "蓝牙耳机 BT-02"@zh ;
-    ex:suppliedBy ex:sup_shengke ; ex:price 599 ; ex:stock 25 ;
-    a ex:cat_headphone ;
-    ex:substituteFor ex:p_buds .
-ex:p_x2   a ex:PhysicalProduct ; rdfs:label "头戴耳机 X2"@zh ;
-    ex:suppliedBy ex:sup_yunyin ; ex:price 549 ; ex:stock 120 ;
-    a ex:cat_headphone .
-ex:p_amp  a ex:PhysicalProduct ; rdfs:label "便携耳放 Amp-Mini"@zh ;
-    ex:suppliedBy ex:sup_yunyin ; ex:price 459 ; ex:stock 60 ;
-    a ex:cat_audio .
-ex:p_dac  a ex:PhysicalProduct ; rdfs:label "小尾巴解码 DAC"@zh ;
-    ex:suppliedBy ex:sup_yunyin ; ex:price 429 ; ex:stock 90 ;
-    a ex:cat_audio ; ex:compatibleWith ex:p_x2 .
-ex:p_buds a ex:PhysicalProduct ; rdfs:label "无线耳塞 Buds3"@zh ;
-    ex:suppliedBy ex:sup_lanwan ; ex:price 399 ; ex:stock 200 ;
-    a ex:cat_headphone .
-ex:p_ch65 a ex:PhysicalProduct ; rdfs:label "65W 氮化镓充电器"@zh ;
-    ex:suppliedBy ex:sup_hongda ; ex:price 199 ; ex:stock 80 ;
-    a ex:cat_charger ; ex:compatibleWith ex:p_bt01 .
-ex:p_ch20 a ex:PhysicalProduct ; rdfs:label "20W 充电器"@zh ;
-    ex:suppliedBy ex:sup_hongda ; ex:price 79 ; ex:stock 150 ;
-    a ex:cat_charger .
-ex:p_usbc a ex:PhysicalProduct ; rdfs:label "USB-C 编织线"@zh ;
-    ex:suppliedBy ex:sup_hongda ; ex:price 39 ; ex:stock 500 ;
-    a ex:cat_cable .
-ex:p_spk1 a ex:PhysicalProduct ; rdfs:label "桌面音箱 S1"@zh ;
-    ex:suppliedBy ex:sup_xinglian ; ex:price 429 ; ex:stock 60 ;
-    a ex:cat_speaker .
-ex:p_bulb1 a ex:PhysicalProduct ; rdfs:label "智能灯泡 L1"@zh ;
-    ex:suppliedBy ex:sup_huijin ; ex:price 99 ; ex:stock 300 ;
-    a ex:cat_bulb .
-ex:p_hub  a ex:PhysicalProduct ; rdfs:label "六合一扩展坞 Hub6"@zh ;
-    ex:suppliedBy ex:sup_shengke ; ex:price 349 ; ex:stock 15 ;
-    a ex:cat_digital_acc .
+ex:club_star a ex:Club ;
+    rdfs:label "启明星 FC"@zh .
 
-########################
-# 套装（hasPart 传递；b_ultimate 嵌套 b_music）
-########################
-ex:b_music a ex:Bundle ; rdfs:label "音乐套装"@zh ;
-    ex:price 1299 ; ex:stock 30 ;
-    ex:hasPart ex:p_bt01 , ex:p_amp .
-ex:b_travel a ex:Bundle ; rdfs:label "出行套装"@zh ;
-    ex:price 599 ; ex:stock 50 ;
-    ex:hasPart ex:p_ch65 , ex:p_usbc , ex:p_buds .
-ex:b_ultimate a ex:Bundle ; rdfs:label "全家桶套装"@zh ;
-    ex:price 1899 ; ex:stock 12 ;
-    ex:hasPart ex:b_music , ex:p_spk1 .
+########## 一线队（playsFor）##########
 
-########################
-# 客户（VIP 边界卡位）
-########################
-ex:c_zhangwei a ex:Customer ; rdfs:label "张伟"@zh ; ex:annualSpend 8200 ; ex:membershipLevel "gold" .
-ex:c_lina     a ex:Customer ; rdfs:label "李娜"@zh ; ex:annualSpend 4600 ; ex:membershipLevel "silver" .
-ex:c_wanglei  a ex:Customer ; rdfs:label "王磊"@zh ; ex:annualSpend 5400 ; ex:membershipLevel "silver" .
-ex:c_chenjing a ex:Customer ; rdfs:label "陈静"@zh ; ex:annualSpend 2100 ; ex:membershipLevel "silver" .
-ex:c_zhaomin  a ex:Customer ; rdfs:label "赵敏"@zh ; ex:annualSpend 1999 ; ex:membershipLevel "silver" .
-ex:c_sunli    a ex:Customer ; rdfs:label "孙丽"@zh ; ex:annualSpend 5000 ; ex:membershipLevel "gold" .
-ex:c_zhouyu   a ex:Customer ; rdfs:label "周宇"@zh ; ex:annualSpend 5200 ; ex:membershipLevel "silver" .
-ex:c_wufan    a ex:Customer ; rdfs:label "吴凡"@zh ; ex:annualSpend 800 ; ex:membershipLevel "none" .
-ex:c_xuqian   a ex:Customer ; rdfs:label "徐倩"@zh ; ex:annualSpend 3200 ; ex:membershipLevel "none" .
-ex:c_luohei   a ex:Customer ; rdfs:label "罗浩"@zh ; ex:annualSpend 1500 ; ex:membershipLevel "gold" .
+ex:p_gk1 a ex:Player, ex:Goalkeeper ; rdfs:label "阿利松"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_gk1 .
+ex:p_gk2 a ex:Player, ex:Goalkeeper ; rdfs:label "库尔图瓦"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_gk2 .
 
-########################
-# 订单与明细（pending 且含声科商品的才触发通知）
-########################
-ex:o1  a ex:Order ; ex:placedBy ex:c_zhangwei ; ex:orderStatus "pending" ;
-    ex:hasLine ex:o1_l1 . ex:o1_l1 a ex:OrderLine ; ex:lineProduct ex:p_bt01 .
-ex:o2  a ex:Order ; ex:placedBy ex:c_zhangwei ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o2_l1 . ex:o2_l1 a ex:OrderLine ; ex:lineProduct ex:p_spk1 .
-ex:o3  a ex:Order ; ex:placedBy ex:c_lina ; ex:orderStatus "pending" ;
-    ex:hasLine ex:o3_l1 , ex:o3_l2 . ex:o3_l1 a ex:OrderLine ; ex:lineProduct ex:p_bt01 .
-ex:o3_l2 a ex:OrderLine ; ex:lineProduct ex:p_amp .
-ex:o4  a ex:Order ; ex:placedBy ex:c_wanglei ; ex:orderStatus "pending" ;
-    ex:hasLine ex:o4_l1 . ex:o4_l1 a ex:OrderLine ; ex:lineProduct ex:p_hub .
-ex:o5  a ex:Order ; ex:placedBy ex:c_chenjing ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o5_l1 . ex:o5_l1 a ex:OrderLine ; ex:lineProduct ex:p_ch65 .
-ex:o6  a ex:Order ; ex:placedBy ex:c_chenjing ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o6_l1 . ex:o6_l1 a ex:OrderLine ; ex:lineProduct ex:p_usbc .
-ex:o7  a ex:Order ; ex:placedBy ex:c_chenjing ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o7_l1 . ex:o7_l1 a ex:OrderLine ; ex:lineProduct ex:p_buds .
-ex:o8  a ex:Order ; ex:placedBy ex:c_zhaomin ; ex:orderStatus "pending" ;
-    ex:hasLine ex:o8_l1 . ex:o8_l1 a ex:OrderLine ; ex:lineProduct ex:p_bt02 .
-ex:o9  a ex:Order ; ex:placedBy ex:c_sunli ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o9_l1 . ex:o9_l1 a ex:OrderLine ; ex:lineProduct ex:p_x2 .
-ex:o10 a ex:Order ; ex:placedBy ex:c_zhouyu ; ex:orderStatus "pending" ;
-    ex:hasLine ex:o10_l1 . ex:o10_l1 a ex:OrderLine ; ex:lineProduct ex:p_spk1 .
-ex:o11 a ex:Order ; ex:placedBy ex:c_luohei ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o11_l1 . ex:o11_l1 a ex:OrderLine ; ex:lineProduct ex:p_ch20 .
-ex:o12 a ex:Order ; ex:placedBy ex:c_wufan ; ex:orderStatus "pending" ;
-    ex:hasLine ex:o12_l1 . ex:o12_l1 a ex:OrderLine ; ex:lineProduct ex:p_usbc .
-ex:o13 a ex:Order ; ex:placedBy ex:c_xuqian ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o13_l1 . ex:o13_l1 a ex:OrderLine ; ex:lineProduct ex:p_bulb1 .
-ex:o14 a ex:Order ; ex:placedBy ex:c_zhangwei ; ex:orderStatus "pending" ;
-    ex:hasLine ex:o14_l1 . ex:o14_l1 a ex:OrderLine ; ex:lineProduct ex:p_hub .
-ex:o15 a ex:Order ; ex:placedBy ex:c_lina ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o15_l1 . ex:o15_l1 a ex:OrderLine ; ex:lineProduct ex:p_bulb1 .
-ex:o16 a ex:Order ; ex:placedBy ex:c_lina ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o16_l1 . ex:o16_l1 a ex:OrderLine ; ex:lineProduct ex:p_ch20 .
-ex:o17 a ex:Order ; ex:placedBy ex:c_lina ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o17_l1 . ex:o17_l1 a ex:OrderLine ; ex:lineProduct ex:p_usbc .
-ex:o18 a ex:Order ; ex:placedBy ex:c_zhaomin ; ex:orderStatus "shipped" ;
-    ex:hasLine ex:o18_l1 . ex:o18_l1 a ex:OrderLine ; ex:lineProduct ex:p_ch20 .
+ex:p_cb1 a ex:Player, ex:CentreBack ; rdfs:label "范戴克"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_cb1 ;
+    ex:participatesIn ex:m_d1, ex:m_d2 ; ex:minutesPlayed 75, 60 ;
+    ex:trainsIn ex:t_w1 .
+ex:p_cb2 a ex:Player, ex:CentreBack ; rdfs:label "鲁本·迪亚斯"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_cb2 ;
+    ex:participatesIn ex:m_d1 ; ex:minutesPlayed 75 .
 
-########################
-# 促销活动
-########################
-ex:promo_618 a ex:Promotion ; rdfs:label "数码配件 618 大促"@zh ;
-    ex:promotes ex:cat_digital_acc ; ex:status "active" .
-ex:promo_music a ex:Promotion ; rdfs:label "音乐套装限时购"@zh ;
-    ex:promotes ex:b_music ; ex:status "active" .
-ex:promo_travel a ex:Promotion ; rdfs:label "出行装备节"@zh ;
-    ex:promotes ex:b_travel ; ex:status "active" .
-ex:promo_ultimate a ex:Promotion ; rdfs:label "全家桶预售"@zh ;
-    ex:promotes ex:b_ultimate ; ex:status "paused" .
+ex:p_fb1 a ex:Player, ex:Fullback ; rdfs:label "阿诺德"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_fb1 ;
+    ex:participatesIn ex:m_d1, ex:m_d2 ; ex:minutesPlayed 70, 65 .
+ex:p_fb2 a ex:Player, ex:Fullback ; rdfs:label "特奥·埃尔南德斯"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_fb2 .
+
+ex:p_dm1 a ex:Player, ex:DefensiveMidfielder ; rdfs:label "罗德里"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_dm1 ;
+    ex:participatesIn ex:m_d1, ex:m_d2, ex:m_d3 ; ex:minutesPlayed 75, 65, 70 .
+
+# 前腰双核：德布劳内连踢三场大强度（体能枯竭 + 过度使用告警的教学锚点），
+# B费腿筋拉伤伤停 4 周——本项目所有传导场景的起点。
+ex:p_am1 a ex:Player, ex:AttackingMidfielder ; rdfs:label "德布劳内"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_am1 ;
+    ex:participatesIn ex:m_d1, ex:m_d2, ex:m_d3 ; ex:minutesPlayed 90, 90, 85 .
+ex:p_am2 a ex:Player, ex:AttackingMidfielder ; rdfs:label "B费"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_am2 ;
+    ex:injuredWith ex:inj_am2 .
+
+ex:p_wg1 a ex:Player, ex:Winger ; rdfs:label "维尼修斯"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_wg1 ;
+    ex:participatesIn ex:m_d1 ; ex:minutesPlayed 70 ;
+    ex:trainsIn ex:t_w1 .
+ex:p_wg2 a ex:Player, ex:Winger ; rdfs:label "萨卡"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_wg2 ;
+    ex:participatesIn ex:m_d2 ; ex:minutesPlayed 70 .
+
+ex:p_st1 a ex:Player, ex:Striker ; rdfs:label "哈兰德"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_st1 ;
+    ex:participatesIn ex:m_d1, ex:m_d2 ; ex:minutesPlayed 90, 75 ;
+    ex:trainsIn ex:t_w1 .
+ex:p_st2 a ex:Player, ex:Striker ; rdfs:label "姆巴佩"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_st2 ;
+    ex:participatesIn ex:m_d2 ; ex:minutesPlayed 70 .
+ex:p_st3 a ex:Player, ex:Striker ; rdfs:label "凯恩"@zh ;
+    ex:playsFor ex:club_star ;
+    ex:hasContract ex:c_st3 .
+
+########## 青年队（squadOf；YouthPlayer ⊑ Player 由推理补全）##########
+
+ex:p_ygk a ex:YouthPlayer, ex:Goalkeeper ; rdfs:label "马马达什维利"@zh ;
+    ex:squadOf ex:club_star .
+ex:p_ycb a ex:YouthPlayer, ex:CentreBack ; rdfs:label "库巴西"@zh ;
+    ex:squadOf ex:club_star .
+ex:p_yfb a ex:YouthPlayer, ex:Fullback ; rdfs:label "巴尔德"@zh ;
+    ex:squadOf ex:club_star .
+ex:p_yam1 a ex:YouthPlayer, ex:AttackingMidfielder ; rdfs:label "亚马尔"@zh ;
+    ex:squadOf ex:club_star .
+ex:p_yam2 a ex:YouthPlayer, ex:AttackingMidfielder ; rdfs:label "居莱尔"@zh ;
+    ex:squadOf ex:club_star .
+ex:p_yst a ex:YouthPlayer, ex:Striker ; rdfs:label "恩德里克"@zh ;
+    ex:squadOf ex:club_star .
+
+########## 合同 ##########
+
+ex:c_gk1 a ex:Contract ; rdfs:label "阿利松的合同"@zh ; ex:contractYears 3 .
+ex:c_gk2 a ex:Contract ; rdfs:label "库尔图瓦的合同"@zh ; ex:contractYears 2 .
+ex:c_cb1 a ex:Contract ; rdfs:label "范戴克的合同"@zh ; ex:contractYears 4 .
+ex:c_cb2 a ex:Contract ; rdfs:label "鲁本·迪亚斯的合同"@zh ; ex:contractYears 5 .
+ex:c_fb1 a ex:Contract ; rdfs:label "阿诺德的合同"@zh ; ex:contractYears 3 .
+ex:c_fb2 a ex:Contract ; rdfs:label "特奥·埃尔南德斯的合同"@zh ; ex:contractYears 2 .
+ex:c_dm1 a ex:Contract ; rdfs:label "罗德里的合同"@zh ; ex:contractYears 5 .
+ex:c_am1 a ex:Contract ; rdfs:label "德布劳内的合同"@zh ; ex:contractYears 1 .
+ex:c_am2 a ex:Contract ; rdfs:label "B费的合同"@zh ; ex:contractYears 3 .
+ex:c_wg1 a ex:Contract ; rdfs:label "维尼修斯的合同"@zh ; ex:contractYears 4 .
+ex:c_wg2 a ex:Contract ; rdfs:label "萨卡的合同"@zh ; ex:contractYears 3 .
+ex:c_st1 a ex:Contract ; rdfs:label "哈兰德的合同"@zh ; ex:contractYears 5 .
+ex:c_st2 a ex:Contract ; rdfs:label "姆巴佩的合同"@zh ; ex:contractYears 2 .
+ex:c_st3 a ex:Contract ; rdfs:label "凯恩的合同"@zh ; ex:contractYears 1 .
+
+########## 比赛与训练 ##########
+
+ex:m_d1 a ex:Match ; rdfs:label "联赛第 1 轮"@zh ; ex:matchday 1 .
+ex:m_d2 a ex:Match ; rdfs:label "联赛第 2 轮"@zh ; ex:matchday 2 .
+ex:m_d3 a ex:Match ; rdfs:label "联赛第 3 轮"@zh ; ex:matchday 3 .
+
+ex:t_w1 a ex:TrainingSession ; rdfs:label "周中训练课"@zh ; ex:load 40 .
+
+########## 伤病 ##########
+
+ex:inj_am2 a ex:InjuryRecord ;
+    rdfs:label "腿筋拉伤"@zh ;
+    ex:weeksOut 4 .
