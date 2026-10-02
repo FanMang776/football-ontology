@@ -44,12 +44,13 @@ ex:p_dm1 a ex:Player, ex:DefensiveMidfielder ; rdfs:label "罗德里"@zh ;
     ex:hasContract ex:c_dm1 ;
     ex:participatesIn ex:m_d1, ex:m_d2, ex:m_d3 ; ex:minutesPlayed 75, 65, 70 .
 
-# 前腰双核：德布劳内连踢三场大强度（体能枯竭 + 过度使用告警的教学锚点），
+# 前腰双核：德布劳内连踢三场大强度 90/88/85（初始体能 56，过度使用告警的教学锚点；
+# 注意 RDF 集合语义下重复值会塌缩，分钟数不能全同），
 # B费腿筋拉伤伤停 4 周——本项目所有传导场景的起点。
 ex:p_am1 a ex:Player, ex:AttackingMidfielder ; rdfs:label "德布劳内"@zh ;
     ex:playsFor ex:club_star ;
     ex:hasContract ex:c_am1 ;
-    ex:participatesIn ex:m_d1, ex:m_d2, ex:m_d3 ; ex:minutesPlayed 90, 90, 85 .
+    ex:participatesIn ex:m_d1, ex:m_d2, ex:m_d3 ; ex:minutesPlayed 90, 88, 85 .
 ex:p_am2 a ex:Player, ex:AttackingMidfielder ; rdfs:label "B费"@zh ;
     ex:playsFor ex:club_star ;
     ex:hasContract ex:c_am2 ;

@@ -1,15 +1,17 @@
 """FastAPI 接口 + 静态前端托管。启动：uvicorn api.main:app --reload"""
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from rdflib import RDF, RDFS, Literal
 
+from engine import events as ev
 from engine.knowledge_base import KnowledgeBase
 from engine.namespaces import EX
 
-app = FastAPI(title="电商本体论 Demo")
+app = FastAPI(title="足球本体世界 Demo")
 kb = KnowledgeBase()
 
 OWL = "http://www.w3.org/2002/07/owl#"
@@ -29,23 +31,61 @@ def _resolve(kind: str, local: str):
     return node
 
 
-class RiskBody(BaseModel):
-    supplier_id: str
-    delayed: bool
+class EventBody(BaseModel):
+    type: str                      # match | training | injury | recovery
+    player_id: str
+    minutes: Optional[int] = Field(None, ge=1, le=120)
+    load: Optional[int] = Field(None, ge=1, le=100)
+    weeks_out: Optional[int] = Field(None, ge=1, le=52)
+    kind: Optional[str] = None
 
 
-class VipBody(BaseModel):
-    spend_threshold: int = 5000
-    order_threshold: int = 3
+class ParamsBody(BaseModel):
+    fitness_floor: int = Field(ge=0, le=100)
+
+
+def _build_event(body: EventBody):
+    player = EX[body.player_id]
+    if (player, None, None) not in kb.material:
+        raise HTTPException(400, f"未知球员: {body.player_id}")
+    if body.type == "match":
+        if body.minutes is None:
+            raise HTTPException(400, "match 事件需要 minutes")
+        return ev.MatchPlayedEvent(player, body.minutes)
+    if body.type == "training":
+        if body.load is None:
+            raise HTTPException(400, "training 事件需要 load")
+        return ev.TrainingLoadEvent(player, body.load)
+    if body.type == "injury":
+        if body.weeks_out is None:
+            raise HTTPException(400, "injury 事件需要 weeks_out")
+        return ev.InjuryEvent(player, body.weeks_out, body.kind or "伤病")
+    if body.type == "recovery":
+        return ev.RecoveryEvent(player)
+    raise HTTPException(400, f"未知事件类型: {body.type}（可选 match/training/injury/recovery）")
+
+
+@app.post("/api/events")
+def inject_event(body: EventBody):
+    """世界的事件入口（嘴）：感知 → 计算 → 建议，返回传导报告。"""
+    return kb.dispatch(_build_event(body))
+
+
+@app.get("/api/object/{oid}/describe")
+def describe_object(oid: str):
+    """对象的四问：是谁 / 现在状态 / 为什么 / 能做什么。"""
+    try:
+        return kb.describe(oid)
+    except KeyError:
+        raise HTTPException(404, f"未知对象: {oid}")
 
 
 @app.get("/api/graph")
 def graph():
     """图谱快照：实体为节点，三元组为边；声明实线、推断虚线由前端区分。"""
     nodes, edges = {}, []
-    shown = (EX.suppliedBy, EX.hasPart, EX.isComponentOf, EX.substituteFor,
-             EX.compatibleWith, EX.sameSeries, EX.promotes, EX.placedBy,
-             EX.hasLine, EX.lineProduct, RDF.type)
+    shown = (EX.playsFor, EX.squadOf, EX.hasContract, EX.injuredWith,
+             EX.participatesIn, EX.trainsIn, RDF.type)
 
     def add_node(n):
         key = str(n)
@@ -85,7 +125,7 @@ def taxonomy():
                 "children": [build(c, visited)
                              for c in sorted(children.get(uri, []))]}
 
-    return build(str(EX.BusinessObject))
+    return build(str(EX.FootballEntity))
 
 
 @app.get("/api/entity/{eid}")
@@ -111,39 +151,42 @@ def entity(eid: str):
             "inferred": sorted(inferred, key=key)}
 
 
-@app.post("/api/scenario/supplier-risk")
-def supplier_risk(body: RiskBody):
-    _resolve("供应商", body.supplier_id)
-    return kb.supplier_risk(EX[body.supplier_id], body.delayed)
-
-
-@app.post("/api/scenario/vip")
-def vip(body: VipBody):
-    return kb.vip_classification(body.spend_threshold, body.order_threshold)
-
-
-@app.get("/api/scenario/recommend/{pid}")
-def recommend(pid: str):
-    _resolve("商品", pid)
-    return kb.recommend(EX[pid])
-
-
 @app.get("/api/actions")
 def actions():
     return kb.list_actions()
+
+
+@app.post("/api/preview-action/{aid}")
+def preview_action(aid: str):
+    result = kb.preview(aid)
+    if not result["ok"]:
+        raise HTTPException(404, result.get("message", "无法预览该动作"))
+    return result
 
 
 @app.post("/api/action/{aid}/execute")
 def execute_action(aid: str):
     result = kb.execute(aid)
     if not result["ok"]:
-        raise HTTPException(409, result["message"])
+        status = 409
+        raise HTTPException(status, result["message"])
     return result
 
 
 @app.post("/api/actions/execute-all")
 def execute_all():
     return kb.execute_all()
+
+
+@app.get("/api/audit")
+def audit():
+    return kb.audit_view()
+
+
+@app.post("/api/params")
+def set_params(body: ParamsBody):
+    kb.set_params(body.fitness_floor)
+    return {"ok": True, "params": dict(kb.params)}
 
 
 @app.post("/api/reset")
