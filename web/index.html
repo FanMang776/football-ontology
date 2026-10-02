@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>电商本体论演示 · 推理驱动的业务决策</title>
+<title>足球本体世界 · 会感知、会计算、会行动的业务对象</title>
 <link rel="stylesheet" href="/style.css">
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.min.js"></script>
 </head>
@@ -11,15 +11,15 @@
 
 <header class="topbar">
   <div class="brand">
-    <h1>电商本体论演示</h1>
-    <p class="sub">OWL-RL 推理 · 业务规则 · 可解释决策</p>
+    <h1>足球本体世界</h1>
+    <p class="sub">对象运行时 · 事件感知 · 派生状态 · 治理动作</p>
   </div>
   <nav class="tabs" id="tabs">
-    <button class="tab active" data-tab="overview"><i class="tab-dot" style="--c:#64748b"></i>图谱总览</button>
-    <button class="tab" data-tab="risk"><i class="tab-dot" style="--c:#e8871e"></i>风险传导</button>
-    <button class="tab" data-tab="vip"><i class="tab-dot" style="--c:#22a06b"></i>客户分类</button>
-    <button class="tab" data-tab="recommend"><i class="tab-dot" style="--c:#3b82c4"></i>语义推荐</button>
+    <button class="tab active" data-tab="overview"><i class="tab-dot" style="--c:#64748b"></i>世界总览</button>
+    <button class="tab" data-tab="events"><i class="tab-dot" style="--c:#e8871e"></i>事件流</button>
+    <button class="tab" data-tab="player"><i class="tab-dot" style="--c:#22a06b"></i>球员对象</button>
     <button class="tab" data-tab="decisions"><i class="tab-dot" style="--c:#d9a514"></i>决策中心</button>
+    <button class="tab" data-tab="learn"><i class="tab-dot" style="--c:#3b82c4"></i>学习路径</button>
   </nav>
 </header>
 
@@ -36,13 +36,13 @@
 
   <aside class="panel-wrap">
 
-    <!-- ═══ 图谱总览 ═══ -->
+    <!-- ═══ 世界总览 ═══ -->
     <section class="panel active" id="panel-overview">
       <p class="kicker">关于本演示</p>
-      <h2>一张会推理的业务图谱</h2>
-      <p class="intro">本体（TBox）用类、属性与公理描述电商业务——商品、套装、供应商、订单、促销之间的关系；具体业务数据（ABox）是图中的节点。灰色实线是<b>声明的事实</b>，青色虚线是<b>OWL-RL 推理得出</b>的结论。切换上方标签页，看推理如何理解业务并驱动决策。</p>
+      <h2>一个会呼吸的业务世界</h2>
+      <p class="intro">启明星 FC 的每个球员都是一个<b>运行时对象</b>：有声明的事实（合同、出场史、位置），有算出来的状态（体能），会感知事件（比赛、伤病），能被建议动作改变。灰色实线是<b>声明的事实</b>，青色虚线是<b>OWL-RL 推理得出</b>的结论——比如「亚马尔能踢前腰大类」就是位置子类树的推论。</p>
       <div class="stats">
-        <div class="stat"><span class="stat-num" id="stat-nodes">–</span><span class="stat-label">节点</span></div>
+        <div class="stat"><span class="stat-num" id="stat-nodes">–</span><span class="stat-label">对象</span></div>
         <div class="stat"><span class="stat-num" id="stat-edges">–</span><span class="stat-label">三元组边</span></div>
         <div class="stat"><span class="stat-num" id="stat-inferred">–</span><span class="stat-label">推断边</span></div>
       </div>
@@ -51,76 +51,97 @@
       <p class="hint muted">点击图中任意节点，可查看它的事实清单：哪些是声明的，哪些是推理得出的。</p>
     </section>
 
-    <!-- ═══ 风险传导 ═══ -->
-    <section class="panel" id="panel-risk">
-      <p class="kicker">场景一 · 供应链风险</p>
-      <h2>标记供应商延迟，看风险如何沿本体传导</h2>
+    <!-- ═══ 事件流 ═══ -->
+    <section class="panel" id="panel-events">
+      <p class="kicker">世界的嘴 · 事件入口</p>
+      <h2>注入事件，看世界如何反应</h2>
       <div class="field">
-        <label for="supplier-select">供应商</label>
-        <select id="supplier-select"></select>
+        <label for="event-type">事件类型</label>
+        <select id="event-type">
+          <option value="match">比赛结束（出场分钟）</option>
+          <option value="training">训练课（负荷）</option>
+          <option value="injury">受伤（伤停周数）</option>
+          <option value="recovery">痊愈</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="event-player">球员</label>
+        <select id="event-player"></select>
+      </div>
+      <div class="field" id="field-minutes">
+        <label for="event-minutes">出场分钟（1–120）</label>
+        <input type="number" id="event-minutes" min="1" max="120" value="90">
+      </div>
+      <div class="field" id="field-load" style="display:none">
+        <label for="event-load">训练负荷（1–100）</label>
+        <input type="number" id="event-load" min="1" max="100" value="40">
+      </div>
+      <div class="field" id="field-weeks" style="display:none">
+        <label for="event-weeks">伤停周数（1–52）</label>
+        <input type="number" id="event-weeks" min="1" max="52" value="4">
       </div>
       <div class="btn-row">
-        <button class="btn primary" id="btn-delay">标记延迟</button>
-        <button class="btn" id="btn-undelay">解除延迟</button>
+        <button class="btn primary" id="btn-send-event">事件注入世界</button>
       </div>
-      <p id="risk-hint" class="hint muted">点击「标记延迟」，系统沿声明与推断的关系链逐层追问：影响了哪些商品？哪些套装？哪些促销？哪些待发货订单？哪些 VIP 客户？</p>
-      <div id="risk-chain"></div>
-      <div class="btn-row">
-        <button class="btn ghost" id="btn-reset-risk">重置演示</button>
-      </div>
+      <p class="hint muted">事件只进对象的收件箱（perceive）；状态是算出来的（compute），建议是推出来的（规则）——看下面的传导链。</p>
+      <div id="event-report"></div>
     </section>
 
-    <!-- ═══ 客户分类 ═══ -->
-    <section class="panel" id="panel-vip">
-      <p class="kicker">场景二 · 客户分层</p>
-      <h2>VIP 是推理出的分类，不是字段</h2>
-      <div class="slider-row">
-        <label for="vip-spend">年消费阈值 <b id="vip-spend-val">5000</b> 元</label>
-        <input type="range" id="vip-spend" min="0" max="10000" step="100" value="5000">
-      </div>
-      <div class="slider-row">
-        <label for="vip-orders">订单数阈值 <b id="vip-orders-val">3</b> 单</label>
-        <input type="range" id="vip-orders" min="1" max="10" step="1" value="3">
-      </div>
-      <p class="hint muted">拖动滑杆，规则实时重算。满足条件的客户会被标为 VIP——绿色圆环出现在图谱中。</p>
-      <div id="vip-cards"></div>
-      <div class="why">VIP 不是存储的字段，是规则推理出的分类：分类随阈值实时变化，也可以被下游规则（如决策中心的通知动作）直接引用。</div>
-    </section>
-
-    <!-- ═══ 语义推荐 ═══ -->
-    <section class="panel" id="panel-recommend">
-      <p class="kicker">场景三 · 商品推荐</p>
-      <h2>有名字的边，可解释的推荐</h2>
+    <!-- ═══ 球员对象 ═══ -->
+    <section class="panel" id="panel-player">
+      <p class="kicker">对象运行时 · 灵魂展示</p>
+      <h2>问一个对象四句话</h2>
       <div class="field">
-        <label for="product-select">商品 / 套装</label>
-        <select id="product-select"></select>
+        <label for="player-select">选择对象</label>
+        <select id="player-select"></select>
       </div>
-      <div id="rec-result">
-        <p id="rec-product-name" class="rec-product"></p>
-        <div class="rec-cols">
-          <div class="rec-col">
-            <p class="rec-col-title">朴素推荐<span class="rec-col-sub">同品类</span></p>
-            <ul class="rec-list" id="rec-naive"></ul>
-          </div>
-          <div class="rec-col">
-            <p class="rec-col-title">语义推荐<span class="rec-col-sub">按关系</span></p>
-            <ul class="rec-list" id="rec-semantic"></ul>
-          </div>
-        </div>
+      <div id="player-card">
+        <p class="hint muted">选择一名球员，看他如何回答：是谁？现在状态？为什么？能做什么？——这四问就是对象运行时 describe() 的输出。</p>
       </div>
-      <div class="why">语义版的每条推荐都有一条<b>有名字的边</b>作为依据（替代品、兼容配件、同系列……）——这就是可解释性：推荐不再是黑盒打分，而是图谱上一条可以点开看的路径。</div>
     </section>
 
     <!-- ═══ 决策中心 ═══ -->
     <section class="panel" id="panel-decisions">
-      <p class="kicker">决策闭环</p>
-      <h2>从推理到行动，再回到图谱</h2>
-      <div class="why">建议动作本身也是推理的产物：规则把「情况」映射为「动作」，执行效果作为新事实写回后，条件不再成立，建议自然消失。</div>
+      <p class="kicker">治理闭环 · Palantir 写路径</p>
+      <h2>从建议到行动，带边界的那种</h2>
+      <div class="slider-row">
+        <label for="fitness-floor">过度使用体能阈值 <b id="fitness-floor-val">60</b></label>
+        <input type="range" id="fitness-floor" min="30" max="90" step="5" value="60">
+      </div>
+      <div class="why">建议动作本身也是推理的产物。但和裸 API 不同：征调有报名上限（前置条件），治疗要队医确认（审批），每一步都进审计——执行前先「预览影响」。</div>
       <div id="actions-list"></div>
+      <p class="kicker">审计日志</p>
+      <div id="audit-list"></div>
       <div class="btn-row">
-        <button class="btn primary" id="btn-execute-all">全部执行</button>
         <button class="btn ghost" id="btn-reset">重置演示</button>
       </div>
+    </section>
+
+    <!-- ═══ 学习路径 ═══ -->
+    <section class="panel" id="panel-learn">
+      <p class="kicker">四章教程 · learn/</p>
+      <h2>从三元组到会行动的世界</h2>
+      <div class="learn-card">
+        <p class="learn-title">01 · 本体是什么</p>
+        <p class="learn-desc">三元组与对象：从关系表的 JOIN 到「范戴克 playsFor 启明星 FC」。</p>
+        <code>python scripts/explore.py --step 1</code>
+      </div>
+      <div class="learn-card">
+        <p class="learn-title">02 · 用能力问题建模俱乐部世界</p>
+        <p class="learn-desc">先问「谁受伤会影响下场比赛？」，再反推需要哪些类、关系与状态。</p>
+        <code>python scripts/explore.py --step 2</code>
+      </div>
+      <div class="learn-card">
+        <p class="learn-title">03 · 推理如何发生</p>
+        <p class="learn-desc">声明 vs 推断：位置泛化、青年队归类——OWL-RL 闭包在做什么。</p>
+        <code>python scripts/explore.py --step 3</code>
+      </div>
+      <div class="learn-card">
+        <p class="learn-title">04 · 从状态到行动</p>
+        <p class="learn-desc">五官隐喻：事件→感知→派生→规则→治理→写回，对象运行时代码导读。</p>
+        <code>python scripts/explore.py --step 4  # 再来一步 --step 5</code>
+      </div>
+      <p class="hint muted">每个 Tab 都是教程一章的可视化对应物：事件流=嘴和鼻，球员对象=脑，决策中心=手和治理。</p>
     </section>
 
   </aside>
@@ -130,7 +151,7 @@
 <aside class="drawer" id="drawer">
   <header class="drawer-head">
     <div>
-      <p class="kicker">实体详情</p>
+      <p class="kicker">对象详情</p>
       <h3 id="drawer-title">–</h3>
     </div>
     <button class="drawer-close" id="drawer-close" aria-label="关闭">✕</button>

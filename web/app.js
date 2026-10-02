@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
-   电商本体论教学演示 · 前端交互
-   结构：常量表 → 基础设施(toast/fetch) → 图谱渲染 → 五个场景 → 初始化
+   足球本体世界 · 前端交互
+   结构：常量表 → 基础设施(toast/fetch) → 图谱渲染 → 五个 Tab → 初始化
    ═══════════════════════════════════════════════════════════ */
 (() => {
 'use strict';
@@ -8,25 +8,36 @@
 /* ---------- 常量表 ---------- */
 
 const CLASS_COLORS = {
-  PhysicalProduct: '#3b82c4',
-  Bundle:          '#8b5cf6',
-  Supplier:        '#e8871e',
-  Customer:        '#22a06b',
-  Order:           '#64748b',
-  OrderLine:       '#94a3b8',
-  Promotion:       '#dc4a4a',
-  Class:           '#f1f0ea'
+  Goalkeeper:          '#0ea5e9',
+  CentreBack:          '#3b82c4',
+  Fullback:            '#6366f1',
+  DefensiveMidfielder: '#14b8a6',
+  AttackingMidfielder: '#e8871e',
+  Winger:              '#f59e0b',
+  Striker:             '#dc4a4a',
+  Club:                '#d9a514',
+  Contract:            '#64748b',
+  Match:               '#22a06b',
+  TrainingSession:     '#94a3b8',
+  InjuryRecord:        '#ef4444',
+  Class:               '#f1f0ea'
 };
 
 const CLASS_ZH = {
-  PhysicalProduct: '商品', Bundle: '套装', Supplier: '供应商',
-  Customer: '客户', Order: '订单', OrderLine: '订单明细',
-  Promotion: '促销', Class: '类（TBox 概念）'
+  Goalkeeper: '门将', CentreBack: '中后卫', Fullback: '边后卫',
+  DefensiveMidfielder: '后腰', AttackingMidfielder: '前腰', Winger: '边锋',
+  Striker: '中锋', Club: '俱乐部', Contract: '合同',
+  Match: '比赛', TrainingSession: '训练课', InjuryRecord: '伤病记录',
+  Class: '类（TBox 概念）'
 };
 
 const ACTION_ZH = {
-  PausePromotion: '暂停促销', NotifyCustomer: '通知客户',
-  CreatePurchaseOrder: '生成采购单', PromoteSubstitute: '推荐替代品'
+  RestPlayer: '轮休', CallUpYouth: '征调青年队', StartTreatment: '启动治疗'
+};
+
+const AUDIT_RESULT_ZH = {
+  event: '事件', pending: '待审批', executed: '已执行',
+  vetoed: '被否决', failed: '已回滚'
 };
 
 const EDGE_DECLARED = '#cbd5e1';
@@ -148,14 +159,18 @@ function updateStats() {
 
 function fillDropdowns() {
   const g = state.graph;
-  const sup = $('supplier-select'), prod = $('product-select');
-  if (sup.options.length === 0) {
-    g.nodes.filter(n => n.cls === 'Supplier').forEach(n =>
-      sup.add(new Option(n.label, n.id)));
-    g.nodes.filter(n => n.cls === 'PhysicalProduct' || n.cls === 'Bundle')
-      .forEach(n => prod.add(new Option(n.label, n.id)));
-    // 首访即有推荐内容：下拉框就绪后立即加载默认商品的推荐
-    loadRecommend().catch(() => { /* 切到该 Tab 时会重新加载 */ });
+  const ev = $('event-player'), ps = $('player-select');
+  if (ev.options.length === 0) {
+    const POSITIONS = new Set(['Player',
+      'Goalkeeper', 'CentreBack', 'Fullback',
+      'DefensiveMidfielder', 'AttackingMidfielder', 'Winger', 'Striker']);
+    g.nodes
+      .filter(n => POSITIONS.has(n.cls))
+      .sort((a, b) => a.label.localeCompare(b.label, 'zh'))
+      .forEach(n => {
+        ev.add(new Option(n.label, n.id));
+        ps.add(new Option(n.label, n.id));
+      });
   }
 }
 
@@ -206,131 +221,93 @@ function clearHighlights() {
 
 /* 面板为静态内容，统计与图例在 loadGraph / buildLegend 中填充 */
 
-/* ---------- Tab 二：风险传导 ---------- */
+/* ---------- Tab 二：事件流 ---------- */
 
-const CHAIN_UNITS = ['款商品', '个套装', '场促销', '张待发货订单', '位 VIP 客户'];
+const EVENT_FIELDS = {
+  match:    'field-minutes',
+  training: 'field-load',
+  injury:   'field-weeks'
+};
 
-async function markRisk(delayed) {
-  const sid = $('supplier-select').value;
-  if (!sid) { toast('请先选择供应商', true); return; }
-  try {
-    const r = await post('/api/scenario/supplier-risk',
-      { supplier_id: sid, delayed: delayed });
-    if (delayed) { renderChain(r); propagateHighlight(r); }
-    else { resetRiskPanel(); clearHighlights(); await loadGraph(); }
-    toast(delayed ? '已标记延迟，风险沿本体逐层传导' : '已解除该供应商的延迟标记');
-  } catch (e) { toast(e.message, true); }
-}
-
-function renderChain(r) {
-  const box = $('risk-chain');
-  $('risk-hint').style.display = 'none';
-  let html = '<div class="chain"><p class="chain-title">风险传导链</p>';
-  r.chain.forEach((step, i) => {
-    html += '<div class="chain-step' + (step.count > 0 ? ' lit' : '') + '">' +
-      '<span class="chain-num">' + step.step + '</span>' +
-      '<div class="chain-body"><span class="chain-count">' + step.count +
-      ' <span class="unit">' + CHAIN_UNITS[i] + '</span></span>' +
-      '<div class="chain-expl">' + esc(step.explanation) + '</div></div></div>';
+function onEventTypeChange() {
+  const t = $('event-type').value;
+  Object.entries(EVENT_FIELDS).forEach(([type, field]) => {
+    $(field).style.display = (type === t) ? '' : 'none';
   });
-  box.innerHTML = html + '</div>';
 }
 
-function resetRiskPanel() {
-  $('risk-chain').innerHTML = '';
-  $('risk-hint').style.display = '';
-}
-
-function propagateHighlight(r) {
-  if (!state.cy) return; // 无图谱（如 CDN 失败）时只展示步骤条
-  stopWaves();
-  clearHighlights();
-  const cy = state.cy;
-  cy.elements().addClass('dimmed');
-  const layers = [
-    r.products.map(x => x.id),
-    r.bundles.map(x => x.id),
-    r.promotions.map(x => x.id),
-    r.pending_orders.reduce((a, o) => a.concat([o.id, o.customer]), []),
-    r.vip_customers.map(x => x.id)
-  ];
-  let i = 0;
-  state.waveTimer = setInterval(() => {
-    if (i >= layers.length) { stopWaves(); return; }
-    const ids = layers[i];
-    cy.nodes().filter(n => ids.indexOf(n.id()) >= 0).forEach(n => {
-      n.removeClass('dimmed');
-      n.addClass('wave-' + (i + 1));
-      n.connectedEdges().removeClass('dimmed');
-    });
-    i++;
-  }, WAVE_MS);
-}
-
-/* ---------- Tab 三：客户分类 ---------- */
-
-let vipTimer = null;
-
-function onVipSlider() {
-  $('vip-spend-val').textContent = $('vip-spend').value;
-  $('vip-orders-val').textContent = $('vip-orders').value;
-  clearTimeout(vipTimer);
-  vipTimer = setTimeout(loadVip, 300);
-}
-
-async function loadVip() {
+async function sendEvent() {
+  const type = $('event-type').value;
+  const player = $('event-player').value;
+  if (!player) { toast('请先选择球员', true); return; }
+  const body = { type, player_id: player };
+  if (type === 'match') body.minutes = +$('event-minutes').value;
+  if (type === 'training') body.load = +$('event-load').value;
+  if (type === 'injury') body.weeks_out = +$('event-weeks').value;
   try {
-    const r = await post('/api/scenario/vip', {
-      spend_threshold: +$('vip-spend').value,
-      order_threshold: +$('vip-orders').value
-    });
-    renderVipCards(r.vips);
-    if (!state.cy) return; // 无图谱时仍渲染卡片，跳过圆环
-    state.cy.nodes().removeClass('vip-ring');
-    r.vips.forEach(v => {
-      const n = state.cy.getElementById(v.id);
-      if (n.nonempty()) n.addClass('vip-ring');
-    });
+    const r = await post('/api/events', body);
+    renderEventReport(r);
+    toast('事件已注入世界');
+    await Promise.all([loadGraph(), refreshDecisionPanel()]);
   } catch (e) { toast(e.message, true); }
 }
 
-function renderVipCards(vips) {
-  const box = $('vip-cards');
-  if (!vips.length) {
-    box.innerHTML = '<p class="rec-empty">当前阈值下没有客户满足 VIP 规则。</p>';
-    return;
+function renderEventReport(r) {
+  const box = $('event-report');
+  let html = '<div class="chain"><p class="chain-title">传导链</p>';
+  r.chain.forEach((step, i) => {
+    html += '<div class="chain-step lit"><span class="chain-num">' + (i + 1) + '</span>' +
+      '<div class="chain-body"><div class="chain-expl">' + esc(step) + '</div></div></div>';
+  });
+  if (r.state_changes.length) {
+    html += '<p class="chain-title">状态变化</p>';
+    r.state_changes.forEach(c => {
+      html += '<div class="state-change">' + esc(c.id) + ' 体能 ' +
+        (c.old === null ? '–' : c.old) + ' → ' + c.new + '</div>';
+    });
   }
-  box.innerHTML = vips.map(v =>
-    '<div class="vip-card"><span class="vip-name">' + esc(v.label) +
-    '</span><span class="vip-tag">VIP</span>' +
-    '<div class="why">' + esc(v.reason) + '</div></div>').join('');
+  html += '<p class="chain-title">建议清单刷新为 ' + r.suggestions.length +
+    ' 条（见决策中心）</p></div>';
+  box.innerHTML = html;
+  if (state.cy && r.event.target) {
+    const n = state.cy.getElementById(r.event.target);
+    if (n.nonempty()) {
+      n.addClass('wave-3');
+      setTimeout(() => n.removeClass('wave-3'), 1600);
+    }
+  }
 }
 
-/* ---------- Tab 四：语义推荐 ---------- */
+function resetEventPanel() {
+  $('event-report').innerHTML = '';
+}
 
-async function loadRecommend() {
-  const pid = $('product-select').value;
+/* ---------- Tab 三：球员对象 ---------- */
+
+async function loadPlayerCard() {
+  const pid = $('player-select').value;
   if (!pid) return;
   try {
-    const r = await api('/api/scenario/recommend/' + encodeURIComponent(pid));
-    $('rec-product-name').textContent = '为「' + r.product.label + '」推荐：';
-    $('rec-naive').innerHTML = r.naive.length
-      ? r.naive.map(x => '<li data-id="' + esc(x.id) + '">' + esc(x.label) + '</li>').join('')
-      : '<li class="rec-empty">无推荐</li>';
-    $('rec-semantic').innerHTML = r.semantic.length
-      ? r.semantic.map(x => '<li data-id="' + esc(x.id) + '"><span class="rel-badge">' +
-          esc(x.relation_label) + '</span>' + esc(x.label) + '</li>').join('')
-      : '<li class="rec-empty">无推荐</li>';
+    const r = await api('/api/object/' + encodeURIComponent(pid) + '/describe');
+    const list = (arr, cls) => arr.map(x => '<li class="' + (cls || '') + '">' + esc(x) + '</li>').join('');
+    const can = r['能做什么'].map(a =>
+      '<span class="target" data-id="' + esc(a.id) + '">' + esc(ACTION_ZH[a.type] || a.type) + '</span>').join(' ');
+    $('player-card').innerHTML =
+      '<div class="vip-card player-card"><span class="vip-name">' + esc(r.label) +
+      '</span><span class="vip-tag">' + esc(r['是谁'].match(/（(.*)）/)[1]) + '</span>' +
+      '<p class="chain-title">现在状态</p><ul class="rec-list">' + list(r['现在状态']) + '</ul>' +
+      '<p class="chain-title">为什么</p><ul class="rec-list">' + list(r['为什么']) + '</ul>' +
+      '<p class="chain-title">能做什么</p>' + (can || '<span class="rec-empty">当前没有可执行的动作</span>') +
+      '</div>';
   } catch (e) { toast(e.message, true); }
 }
 
-/* 点击推荐结果 → 打开实体抽屉 */
-function onRecListClick(ev) {
-  const li = ev.target.closest('li[data-id]');
-  if (li) openDrawer(li.dataset.id);
+function onPlayerCardClick(ev) {
+  const t = ev.target.closest('.target[data-id]');
+  if (t) openDrawer(t.dataset.id);
 }
 
-/* ---------- Tab 五：决策中心 ---------- */
+/* ---------- Tab 四：决策中心 ---------- */
 
 async function loadActions() {
   const list = await api('/api/actions');
@@ -342,37 +319,75 @@ async function loadActions() {
   box.innerHTML = list.map(a =>
     '<div class="action-card"><div class="action-head">' +
     '<span class="type-badge">' + esc(ACTION_ZH[a.type] || a.type) + '</span>' +
-    '<button class="action-execute" data-id="' + esc(a.id) + '">执行</button></div>' +
+    '<span class="action-btns">' +
+    '<button class="action-preview" data-id="' + esc(a.id) + '">预览影响</button>' +
+    '<button class="action-execute" data-id="' + esc(a.id) + '">执行</button></span></div>' +
     '<div class="action-targets">对象：' + a.targets.map(t =>
       '<span class="target" data-id="' + esc(t.id) + '">' + esc(t.label) + '</span>').join('') +
-    '</div><div class="why">' + esc(a.reason) + '</div></div>').join('');
+    '</div><div class="why">' + esc(a.reason) + '</div>' +
+    '<div class="preview-box" id="pv-' + esc(a.id) + '" style="display:none"></div></div>').join('');
 }
 
-async function executeOne(id) {
+async function previewOne(id) {
+  const box = $('pv-' + id);
+  if (box.style.display !== 'none') { box.style.display = 'none'; return; }
+  try {
+    const r = await post('/api/preview-action/' + encodeURIComponent(id));
+    box.innerHTML =
+      (r.additions.length ? r.additions.map(t =>
+        '<div class="state-change add">＋ ' + esc(t) + '</div>').join('') : '') +
+      (r.retractions.length ? r.retractions.map(t =>
+        '<div class="state-change del">－ ' + esc(t) + '</div>').join('') : '') +
+      '<div class="why">执行前推演：以上三元组将在执行时写入 effects 层（效果即事实）。</div>';
+    box.style.display = '';
+  } catch (e) { toast(e.message, true); }
+}
+
+async function executeOne(id, btn) {
   try {
     const r = await post('/api/action/' + encodeURIComponent(id) + '/execute');
-    toast(r.message || '已执行');
-    await Promise.all([loadActions(), loadGraph()]);
+    toast(r.message || (r.pending ? '已登记待审批' : '已执行'), r.ok === false);
+    if (r.pending) { btn.textContent = '确认执行'; }
+    await Promise.all([loadActions(), loadAudit(), loadGraph()]);
   } catch (e) { toast(e.message, true); }
 }
 
-async function executeAll() {
-  try {
-    const r = await post('/api/actions/execute-all');
-    toast('已执行 ' + r.executed + ' 条建议，剩余 ' + r.remaining + ' 条');
-    await Promise.all([loadActions(), loadGraph()]);
-  } catch (e) { toast(e.message, true); }
+async function loadAudit() {
+  const rows = await api('/api/audit');
+  $('audit-list').innerHTML = rows.length
+    ? rows.map(e =>
+        '<div class="audit-row"><span class="audit-step">step ' + e.step + '</span>' +
+        '<span class="audit-result r-' + esc(e.result) + '">' + (AUDIT_RESULT_ZH[e.result] || e.result) + '</span>' +
+        '<span class="audit-detail">' + esc((AUDIT_RESULT_ZH[e.result] || e.result) + '：' + e.detail) + '</span></div>').join('')
+    : '<p class="rec-empty">暂无操作记录——注入一个事件或执行一条建议。</p>';
+}
+
+/* 阈值滑杆：改 fitness_floor，规则实时重算（VIP 滑杆的足球等价物） */
+let floorTimer = null;
+
+function onFloorSlider() {
+  $('fitness-floor-val').textContent = $('fitness-floor').value;
+  clearTimeout(floorTimer);
+  floorTimer = setTimeout(async () => {
+    try {
+      await post('/api/params', { fitness_floor: +$('fitness-floor').value });
+      await loadActions();
+    } catch (e) { toast(e.message, true); }
+  }, 300);
+}
+
+async function refreshDecisionPanel() {
+  await Promise.all([loadActions(), loadAudit()]);
 }
 
 async function resetDemo() {
   try {
     await post('/api/reset');
-    resetRiskPanel();
     clearHighlights();
     closeDrawer();
-    await loadGraph();
-    if (state.currentTab === 'decisions') await loadActions();
-    toast('演示已重置：延迟标记与执行效果均已清除');
+    resetEventPanel();
+    await Promise.all([loadGraph(), loadActions(), loadAudit()]);
+    toast('演示已重置：事件、动作与审计均已清除');
   } catch (e) { toast(e.message, true); }
 }
 
@@ -424,10 +439,11 @@ function switchTab(name) {
   document.querySelectorAll('.panel').forEach(p =>
     p.classList.toggle('active', p.id === 'panel-' + name));
   clearHighlights();
-  resetRiskPanel();
+  resetEventPanel();
   closeDrawer();
-  if (name === 'decisions') loadActions().catch(e => toast(e.message, true));
-  if (name === 'vip') loadVip().catch(e => toast(e.message, true));
+  if (name === 'decisions') refreshDecisionPanel().catch(e => toast(e.message, true));
+  if (name === 'player') loadPlayerCard().catch(e => toast(e.message, true));
+  if (name === 'learn') { /* 静态内容 */ }
 }
 
 /* ---------- 初始化 ---------- */
@@ -438,21 +454,20 @@ function bind() {
     if (btn) switchTab(btn.dataset.tab);
   });
   $('drawer-close').addEventListener('click', closeDrawer);
-  $('btn-delay').addEventListener('click', () => markRisk(true));
-  $('btn-undelay').addEventListener('click', () => markRisk(false));
-  $('btn-reset-risk').addEventListener('click', resetDemo);
-  $('vip-spend').addEventListener('input', onVipSlider);
-  $('vip-orders').addEventListener('input', onVipSlider);
-  $('product-select').addEventListener('change', loadRecommend);
-  $('rec-result').addEventListener('click', onRecListClick);
-  $('btn-execute-all').addEventListener('click', executeAll);
+  $('event-type').addEventListener('change', onEventTypeChange);
+  $('btn-send-event').addEventListener('click', sendEvent);
+  $('fitness-floor').addEventListener('input', onFloorSlider);
+  $('player-select').addEventListener('change', loadPlayerCard);
   $('btn-reset').addEventListener('click', resetDemo);
   $('actions-list').addEventListener('click', ev => {
+    const pb = ev.target.closest('.action-preview');
+    if (pb) { previewOne(pb.dataset.id); return; }
     const btn = ev.target.closest('.action-execute');
-    if (btn) { btn.disabled = true; executeOne(btn.dataset.id); return; }
+    if (btn) executeOne(btn.dataset.id, btn);
     const t = ev.target.closest('.target');
     if (t) openDrawer(t.dataset.id);
   });
+  $('player-card').addEventListener('click', onPlayerCardClick);
 }
 
 async function init() {

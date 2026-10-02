@@ -722,3 +722,53 @@ input[type="range"] {
   .panel-wrap { width: 100%; border-left: none; border-top: 1px solid var(--hairline-dark); }
   .drawer { width: min(360px, 88vw); }
 }
+
+/* ═══ 足球世界新增组件 ═══ */
+
+.state-change {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #eef2f6;
+  color: #475569;
+  margin: 2px 0;
+  font-family: ui-monospace, monospace;
+}
+.state-change.add { background: #e7f6ee; color: #176b45; }
+.state-change.del { background: #fdecec; color: #a33; }
+
+.action-btns { display: flex; gap: 6px; }
+.action-preview {
+  border: 1px solid #cfcabb; background: #fff; color: #475569;
+  border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+}
+.action-preview:hover { border-color: #3b82c4; color: #3b82c4; }
+
+.preview-box {
+  margin-top: 8px; padding: 8px; border: 1px dashed #cfcabb;
+  border-radius: 8px; background: #fbfaf7;
+}
+
+.audit-row {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 12px; padding: 4px 0; border-bottom: 1px dashed #e5e1d8;
+}
+.audit-step { color: #94a3b8; font-family: ui-monospace, monospace; min-width: 52px; }
+.audit-result { min-width: 52px; font-weight: 600; }
+.audit-result.r-event { color: #3b82c4; }
+.audit-result.r-pending { color: #d9a514; }
+.audit-result.r-executed { color: #22a06b; }
+.audit-result.r-vetoed { color: #dc4a4a; }
+.audit-result.r-failed { color: #94a3b8; }
+.audit-detail { color: #64748b; }
+
+.learn-card {
+  border: 1px solid #e5e1d8; border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 8px; background: #fdfcfa;
+}
+.learn-title { font-weight: 700; color: #1f2937; margin: 0 0 4px; }
+.learn-desc { font-size: 13px; color: #64748b; margin: 0 0 6px; }
+.learn-card code {
+  font-size: 12px; background: #eef2f6; padding: 2px 8px;
+  border-radius: 6px; color: #3b82c4;
+}
