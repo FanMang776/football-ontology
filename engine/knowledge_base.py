@@ -86,8 +86,9 @@ class KnowledgeBase:
             self.state.add(t)
 
     def set_params(self, fitness_floor: int):
-        self.params["fitness_floor"] = max(0, min(100, int(fitness_floor)))
-        self.refresh()
+        with self._lock:
+            self.params["fitness_floor"] = max(0, min(100, int(fitness_floor)))
+            self.refresh()
 
     def dispatch(self, event) -> dict:
         with self._lock:

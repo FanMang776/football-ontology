@@ -430,7 +430,7 @@ input[type="range"] {
 .chain-expl { color: var(--ink-2); line-height: 1.7; margin-top: 1px; }
 
 /* VIP 卡片 */
-.vip-card {
+.obj-card {
   border: 1px solid var(--hairline);
   border-left: 3px solid var(--c-customer);
   border-radius: 0 var(--radius) var(--radius) 0;
@@ -439,13 +439,13 @@ input[type="range"] {
   background: rgba(255, 255, 255, 0.7);
 }
 
-.vip-card .vip-name {
+.obj-card .obj-name {
   font-family: var(--serif);
   font-weight: 700;
   font-size: 14.5px;
 }
 
-.vip-card .vip-tag {
+.obj-card .obj-tag {
   font-size: 10.5px;
   color: #fff;
   background: var(--c-customer);

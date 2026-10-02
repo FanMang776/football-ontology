@@ -84,3 +84,15 @@ def test_training_load_event():
     kb = fresh()
     kb.dispatch(TrainingLoadEvent(EX.p_st3, 50))   # 凯恩无声明训练，penalty 50//10 = 5
     assert int(kb.state.value(EX.p_st3, EX.fitness)) == 95
+
+
+def test_club_squad_strength_present_at_bootstrap():
+    """首次 bootstrap 后阵容强度就有值（不存在滞后一轮的 0）。"""
+    kb = KnowledgeBase()
+    v = kb.state.value(EX.club_star, EX.squadStrength)
+    assert v is not None and int(v) > 0
+    # 与"可用球员体能之和"一致
+    total = sum(int(kb.state.value(p, EX.fitness) or 0)
+                for p in kb.material.subjects(EX.playsFor, EX.club_star)
+                if not list(kb.material.objects(p, EX.injuredWith)))
+    assert int(v) == total

@@ -1,4 +1,4 @@
-# 启明星 FC 俱乐部声明数据（ABox）
+# 群星 FC 俱乐部声明数据（ABox）
 # 全部是"白纸黑字写的事实"：阵容、合同、出场史、伤病。
 # 位置建模：球员以类型成员身份挂最细位置类（ex:p_am1 a ex:AttackingMidfielder），
 # 祖先位置成员关系由 subClassOf 闭包推理，不写 hasPosition 属性。
@@ -10,7 +10,7 @@
 ########## 俱乐部 ##########
 
 ex:club_star a ex:Club ;
-    rdfs:label "启明星 FC"@zh .
+    rdfs:label "群星 FC"@zh .
 
 ########## 一线队（playsFor）##########
 

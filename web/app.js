@@ -118,7 +118,7 @@ function cyStylesheet() {
     } },
     { selector: 'node.dimmed', style: { opacity: 0.12 } },
     { selector: 'edge.dimmed', style: { opacity: 0.06 } },
-    { selector: 'node.vip-ring', style: {
+    { selector: 'node.obj-ring', style: {
       'border-width': 4, 'border-color': '#22a06b', 'border-style': 'double'
     } }
   ];
@@ -214,7 +214,7 @@ function clearHighlights() {
   if (!state.cy) return;
   state.cy.elements().removeClass('dimmed');
   for (let i = 1; i <= 5; i++) state.cy.nodes().removeClass('wave-' + i);
-  state.cy.nodes().removeClass('vip-ring');
+  state.cy.nodes().removeClass('obj-ring');
 }
 
 /* ---------- Tab 一：图谱总览 ---------- */
@@ -293,8 +293,8 @@ async function loadPlayerCard() {
     const can = r['能做什么'].map(a =>
       '<span class="target" data-id="' + esc(a.id) + '">' + esc(ACTION_ZH[a.type] || a.type) + '</span>').join(' ');
     $('player-card').innerHTML =
-      '<div class="vip-card player-card"><span class="vip-name">' + esc(r.label) +
-      '</span><span class="vip-tag">' + esc(r['是谁'].match(/（(.*)）/)[1]) + '</span>' +
+      '<div class="obj-card player-card"><span class="obj-name">' + esc(r.label) +
+      '</span><span class="obj-tag">' + esc(CLASS_ZH[r.type] || r.type) + '</span>' +
       '<p class="chain-title">现在状态</p><ul class="rec-list">' + list(r['现在状态']) + '</ul>' +
       '<p class="chain-title">为什么</p><ul class="rec-list">' + list(r['为什么']) + '</ul>' +
       '<p class="chain-title">能做什么</p>' + (can || '<span class="rec-empty">当前没有可执行的动作</span>') +

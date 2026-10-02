@@ -1,4 +1,4 @@
-# 启明星 FC 俱乐部本体（TBox）
+# 群星 FC 俱乐部本体（TBox）
 # 心智模型：本文件只写「白纸黑字的公理」——类层级、属性的域/值域、动作类。
 # 推论（如"德布劳内是场上位置的一员"）由 OWL-RL 推理机在运行时补全，见 engine/loader.py。
 @prefix ex: <http://example.org/football#> .

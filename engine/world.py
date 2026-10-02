@@ -147,7 +147,15 @@ class World:
     def _compute_all(self, objs):
         kb = self.kb
         triples = []
+        clubs = []
         for obj in objs.values():
+            if isinstance(obj, ClubObject):
+                clubs.append(obj)      # 俱乐部的强度依赖球员的 fitness，两段计算
+                continue
+            for prop, val in obj.compute(kb).items():
+                triples.append((obj.iri, EX[prop], Literal(val)))
+        kb.set_state(triples)
+        for obj in clubs:
             for prop, val in obj.compute(kb).items():
                 triples.append((obj.iri, EX[prop], Literal(val)))
         kb.set_state(triples)
