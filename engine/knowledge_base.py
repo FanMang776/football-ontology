@@ -91,11 +91,28 @@ class KnowledgeBase:
 
     def dispatch(self, event) -> dict:
         with self._lock:
-            return self.world.dispatch(event)
+            report = self.world.dispatch(event)
+            self.audit.append({"step": self.next_step(),
+                               "action": "-",
+                               "type": report["event"]["type"],
+                               "target": report["event"]["target"] or "",
+                               "result": "event",
+                               "detail": report["chain"][0] if report["chain"] else ""})
+            return report
 
     def describe(self, object_id: str) -> dict:
         with self._lock:
             return self.world.describe(object_id)
+
+    # ---------- 治理：预览与审计 ----------
+    def preview(self, action_id: str) -> dict:
+        with self._lock:
+            from engine.actions import preview as run
+            return run(self, action_id)
+
+    def audit_view(self) -> list:
+        with self._lock:
+            return sorted(self.audit, key=lambda e: e["step"])
 
     # ---------- 决策执行闭环 ----------
     def list_actions(self) -> list:
