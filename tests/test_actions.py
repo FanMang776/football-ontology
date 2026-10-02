@@ -69,3 +69,17 @@ def test_execute_after_condition_gone_fails_gracefully():
     kb = fresh()
     out = kb.execute("nonexistent")
     assert out["ok"] is False
+
+
+def test_rest_player_executes_and_suggestion_disappears():
+    """轮休执行后体能 +20 越过阈值，建议消失——执行路径必须先 refresh 再重算。"""
+    kb = fresh()
+    kb.set_params(80)
+    aid = find(kb, "RestPlayer", "p_dm1")   # 罗德里：三场出场史，初始体能 65
+    assert aid, "阈值 80 下罗德里应有轮休建议"
+    out = kb.execute(aid)
+    assert out["ok"] is True, out
+    assert int(kb.state.value(EX.p_dm1, EX.fitness)) == 85   # 65 + 20
+    assert not any(a["type"] == "RestPlayer"
+                   and any(t["id"] == "p_dm1" for t in a["targets"])
+                   for a in kb.list_actions())

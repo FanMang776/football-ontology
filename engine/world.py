@@ -48,7 +48,10 @@ class World:
 
     def bootstrap(self):
         """初始重算：构造/重置后先填一次 state 层——
-        否则首次 dispatch 的状态 diff 会把全队当成"新变化"。"""
+        否则首次 dispatch 的状态 diff 会把全队当成"新变化"。
+        先 refresh 再 compute：动作刚写回的效果（如 restGiven）
+        必须先进物化图，compute 才能算出效果后的状态。"""
+        self.kb.refresh()
         self._compute_all(self._objects())
 
     # ---------- 主入口 ----------
