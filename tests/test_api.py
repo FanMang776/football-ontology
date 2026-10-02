@@ -52,3 +52,41 @@ def test_audit_and_params(client):
 
 def test_taxonomy_root(client):
     assert client.get("/api/taxonomy").status_code == 200
+
+
+def test_graph_has_nodes_and_inferred_edges(client):
+    r = client.get("/api/graph")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["nodes"]) >= 20
+    assert any(e["inferred"] for e in body["edges"])   # 位置泛化的推断边
+
+
+def test_execute_pending_returns_200(client):
+    """审批动作第一次执行是合法中间态：200 + pending=true，不是 409。"""
+    client.post("/api/events", json={"type": "injury", "player_id": "p_st1", "weeks_out": 4})
+    acts = client.get("/api/actions").json()
+    aid = next(a["id"] for a in acts
+               if a["type"] == "StartTreatment"
+               and any(t["id"] == "p_st1" for t in a["targets"]))
+    r = client.post(f"/api/action/{aid}/execute")
+    assert r.status_code == 200
+    assert r.json().get("pending") is True
+    r2 = client.post(f"/api/action/{aid}/execute")
+    assert r2.status_code == 200 and r2.json()["ok"] is True
+
+
+def test_preview_unknown_404(client):
+    r = client.post("/api/preview-action/action_Nonexistent_x")
+    assert r.status_code == 404
+
+
+def test_execute_unknown_409(client):
+    r = client.post("/api/action/action_Nonexistent_x/execute")
+    assert r.status_code == 409
+
+
+def test_execute_all_ok(client):
+    r = client.post("/api/actions/execute-all")
+    assert r.status_code == 200
+    assert "executed" in r.json()

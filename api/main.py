@@ -167,9 +167,11 @@ def preview_action(aid: str):
 @app.post("/api/action/{aid}/execute")
 def execute_action(aid: str):
     result = kb.execute(aid)
+    if result.get("pending"):
+        # 审批中间态是合法结果：200 + pending=true，前端据此显示"确认执行"
+        return result
     if not result["ok"]:
-        status = 409
-        raise HTTPException(status, result["message"])
+        raise HTTPException(409, result["message"])
     return result
 
 

@@ -14,10 +14,12 @@ def fresh():
 
 
 def test_match_event_lowers_fitness():
+    """比赛事件写 effects（效果即事实），体能实际下降。"""
     kb = fresh()
-    kb.dispatch(MatchPlayedEvent(EX.p_st1, 90))
-    v = kb.state.value(EX.p_st1, EX.fitness)
-    assert v is not None
+    before = int(kb.state.value(EX.p_st3, EX.fitness))   # 凯恩无声明出场史
+    assert before == 100
+    kb.dispatch(MatchPlayedEvent(EX.p_st3, 90))
+    assert int(kb.state.value(EX.p_st3, EX.fitness)) == 85   # 100 − round(90/6)
 
 
 def test_fitness_formula_deterministic():
@@ -39,6 +41,19 @@ def test_duplicate_injury_takes_max():
     recs = list(kb.material.objects(EX.p_st1, EX.injuredWith))
     assert len(recs) == 1
     assert kb.material.value(recs[0], EX.weeksOut) == Literal(5)
+
+
+def test_reinjury_on_declared_injury_raises_weeks():
+    """声明层伤病被更重的事件压过：撤销旧周数、写入新周数（撤销也是写回）。"""
+    kb = fresh()
+    kb.dispatch(InjuryEvent(EX.p_am2, 8, "重伤"))
+    assert kb.material.value(EX.inj_am2, EX.weeksOut) == Literal(8)
+
+
+def test_weaker_reinjury_on_declared_injury_keeps_max():
+    kb = fresh()
+    kb.dispatch(InjuryEvent(EX.p_am2, 2, "轻伤"))
+    assert kb.material.value(EX.inj_am2, EX.weeksOut) == Literal(4)
 
 
 def test_recovery_of_healthy_player_noop():
@@ -65,7 +80,7 @@ def test_dispatch_report_shape():
 
 
 def test_training_load_event():
+    """训练事件写 effects，体能实际下降。"""
     kb = fresh()
-    kb.dispatch(TrainingLoadEvent(EX.p_st1, 50))   # penalty 50//10 = 5
-    v = int(kb.state.value(EX.p_st1, EX.fitness))
-    assert v <= 95
+    kb.dispatch(TrainingLoadEvent(EX.p_st3, 50))   # 凯恩无声明训练，penalty 50//10 = 5
+    assert int(kb.state.value(EX.p_st3, EX.fitness)) == 95

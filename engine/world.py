@@ -63,6 +63,7 @@ class World:
         if target is not None:
             target.perceive(event)
         chain = self._settle(event)
+        kb.refresh()          # 事件效果进物化图，compute 才能看到新事实
         self._compute_all(objs)
         after = {str(s): int(v) for s, v in kb.state.subject_objects(EX.fitness)}
 
@@ -86,11 +87,18 @@ class World:
             if existing:
                 rec = sorted(existing, key=str)[0]
                 old = _weeks_of(kb.material, event.player)
-                if (rec, EX.weeksOut, None) in kb.effects and event.weeks_out > old:
-                    kb.effects.remove((rec, EX.weeksOut, None))
+                if event.weeks_out > old:
+                    if (rec, EX.weeksOut, None) in kb.effects:
+                        # 运行时伤情：直接改 effects 里的周数
+                        kb.effects.remove((rec, EX.weeksOut, None))
+                    else:
+                        # 声明层伤情：撤销声明的周数三元组——撤销也是写回
+                        for t in list(kb.declared.triples((rec, EX.weeksOut, None))):
+                            kb.retractions.add(t)
                     kb.effects.add((rec, EX.weeksOut, Literal(event.weeks_out)))
-                    chain.append(f"「{name}」已有运行时伤情，伤停周数取 "
-                                 f"max({old}, {event.weeks_out}) = {event.weeks_out}（不新增记录）")
+                    chain.append(f"「{name}」伤情加重：伤停周数 "
+                                 f"max({old}, {event.weeks_out}) = {event.weeks_out}，"
+                                 f"记录已更新（不新增记录）")
                 else:
                     chain.append(f"「{name}」已有伤情（伤停 {old} 周），"
                                  f"新事件 {event.weeks_out} 周不更重，记录不变")
@@ -113,10 +121,24 @@ class World:
             else:
                 chain.append(f"「{name}」本无运行时伤情，痊愈事件无事发生")
         elif isinstance(event, ev.MatchPlayedEvent):
+            # 效果即事实：出场分钟写入 effects 层（注意 RDF 集合语义——
+            # 与既有值相同的分钟数不重复累加惩罚，教学上视为同一事实）
+            kb.effects.add((event.player, EX.minutesPlayed, Literal(event.minutes)))
             chain.append(f"「{name}」感知到比赛事件：出场 {event.minutes} 分钟"
-                         f"（事件只进收件箱，状态由 compute 重算，不直接改值）")
+                         f"（minutesPlayed 写入 effects，状态由 compute 重算）")
         elif isinstance(event, ev.TrainingLoadEvent):
-            chain.append(f"「{name}」感知到训练事件：负荷 {event.load}")
+            base = f"t_evt_{_id(event.player)}"
+            k = 1
+            node = EX[f"{base}_{k}"]
+            while any((node, None, None) in g for g in (kb.declared, kb.effects)):
+                k += 1
+                node = EX[f"{base}_{k}"]
+            kb.effects.add((event.player, EX.trainsIn, node))
+            kb.effects.add((node, RDF.type, EX.TrainingSession))
+            kb.effects.add((node, RDFS.label, Literal("事件注入的训练课", lang="zh")))
+            kb.effects.add((node, EX.load, Literal(event.load)))
+            chain.append(f"「{name}」感知到训练事件：负荷 {event.load}"
+                         f"（新训练课节点写入 effects）")
         else:
             chain.append(f"未知事件类型 {type(event).__name__}，世界无变化")
         return chain
