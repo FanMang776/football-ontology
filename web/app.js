@@ -54,12 +54,8 @@ const CORE_CATS = ['Player', 'Club', 'Class'];
 const PRED_ZH = { playsFor: '效力', squadOf: '所属梯队', hasContract: '有合同',
   injuredWith: '伤病', participatesIn: '出场', trainsIn: '参训', type: '是（类型）' };
 
-/* 语义推荐子图：与选中商品直接相连、值得展示的谓词（推荐可解释边 + 套装组成） */
-const FOCUS_PREDS = ['suppliedBy', 'isComponentOf', 'promotes', 'substituteFor',
-  'compatibleWith', 'sameSeries', 'hasPart'];
-
 const state = { graph: null, cy: null, currentTab: 'overview', waveTimer: null,
-  filtered: false, graphFilters: null, lastReport: null };
+  graphFilters: null, lastReport: null };
 
 /* ---------- 基础设施 ---------- */
 
@@ -330,42 +326,6 @@ function buildLegend() {
       esc(CLASS_ZH[cls] || cls) + (cls === 'Class' ? '（结构，按需看）' : '');
     box.appendChild(item);
   });
-}
-
-/* ---------- 语义推荐子图 ---------- */
-
-function focusSubgraph(pid) {
-  const g = state.graph;
-  const keep = new Set([pid]);
-  const edges = g.edges.filter(e => {
-    if ((e.s === pid || e.o === pid) && FOCUS_PREDS.indexOf(e.p) < 0) return false;
-    if (e.s !== pid && e.o !== pid) return false;
-    keep.add(e.s);
-    keep.add(e.o);
-    return true;
-  });
-  return { nodes: g.nodes.filter(n => keep.has(n.id)), edges: edges };
-}
-
-function renderFocusSubgraph(pid) {
-  if (!state.cy) return; // 无图谱（如 CDN 失败）时只展示推荐列表
-  state.filtered = true;
-  state.cy.batch(() => {
-    state.cy.elements().remove();
-    state.cy.add(graphElements(focusSubgraph(pid)));
-  });
-  runLayout(true);
-}
-
-function restoreFullGraph() {
-  if (!state.filtered) return;
-  state.filtered = false;
-  if (!state.cy) return;
-  state.cy.batch(() => {
-    state.cy.elements().remove();
-    state.cy.add(graphElements(state.graph));
-  });
-  updateStats();
 }
 
 /* ---------- 高亮管理 ---------- */
