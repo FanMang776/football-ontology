@@ -42,6 +42,8 @@ const AUDIT_RESULT_ZH = {
 
 const RULE_CATEGORY_ZH = { suggestion: '状态建议规则', governance: '治理边界' };
 
+const STAGE_ZH = { perceive: '感知', settle: '结算', compute: '派生', rules: '规则' };
+
 const EDGE_DECLARED = '#cbd5e1';
 const EDGE_INFERRED = '#7dd3fc';
 const WAVE_MS = 400;
@@ -381,34 +383,45 @@ async function sendEvent() {
   } catch (e) { toast(e.message, true); }
 }
 
+function nodeLabel(id) {
+  const n = (state.graph && state.graph.nodes.find(x => x.id === id)) || null;
+  return n ? n.label : id;
+}
+
 function renderEventReport(r) {
   const box = $('event-report');
-  let html = '<div class="chain"><p class="chain-title">传导链</p>';
-  r.chain.forEach((step, i) => {
-    html += '<div class="chain-step lit"><span class="chain-num">' + (i + 1) + '</span>' +
-      '<div class="chain-body"><div class="chain-expl">' + esc(step) + '</div></div></div>';
+  let html = '<div class="chain"><p class="chain-title">因果链卡片</p>';
+  r.chain.forEach(step => {
+    html += '<div class="chain-step lit"><span class="chain-badge b-' + esc(step.stage) + '">' +
+      esc(STAGE_ZH[step.stage] || step.stage) + '</span>' +
+      '<div class="chain-expl">' + esc(step.text) + '</div></div>';
   });
+  html += '<p class="chain-title">状态变化</p>';
   if (r.state_changes.length) {
-    html += '<p class="chain-title">状态变化</p>';
     r.state_changes.forEach(c => {
-      html += '<div class="state-change">' + esc(c.id) + ' 体能 ' +
-        (c.old === null ? '–' : c.old) + ' → ' + c.new + '</div>';
+      html += '<div class="state-change">' + esc(nodeLabel(c.id)) + ' 体能 <b>' +
+        (c.old === null ? '–' : c.old) + '</b> → <b>' + c.new + '</b></div>';
     });
+  } else {
+    html += '<div class="chain-expl muted">本次无状态变化</div>';
   }
   // 建议是推论：本次事件的目标球员未必触发条目，把"触发了几条"说清楚，
   // 否则"清单共 N 条"会被读成"本次事件产生了 N 条建议"。
-  const nodeName = () => {
-    const n = (state.graph && state.graph.nodes.find(x => x.id === r.event.target)) || null;
-    return n ? '「' + n.label + '」' : '';
-  };
+  const tname = r.event.target ? '「' + nodeLabel(r.event.target) + '」' : '';
   const mine = r.event.target
     ? r.suggestions.filter(s => (s.targets || []).some(t => t.id === r.event.target))
     : [];
   if (mine.length) {
-    html += '<p class="chain-title">' + nodeName() + '触发 ' + mine.length +
-      ' 条建议（见决策中心）；全球建议清单共 ' + r.suggestions.length + ' 条</p></div>';
+    html += '<p class="chain-title">' + esc(tname) + '触发 ' + mine.length +
+      ' 条建议（点芯片直达决策中心）；全球建议清单共 ' + r.suggestions.length + ' 条</p>';
+    mine.forEach(s => {
+      html += '<span class="sug-chip" data-aid="' + esc(s.id) + '">' +
+        esc(ACTION_ZH[s.type] || s.type) + '：' +
+        esc(s.targets[0] ? s.targets[0].label : '') + '</span>';
+    });
+    html += '</div>';
   } else {
-    html += '<p class="chain-title">' + nodeName() + '本次未触发任何建议' +
+    html += '<p class="chain-title">' + esc(tname) + '本次未触发任何建议' +
       '（建议是推论，条件未过就不产生）；全球建议清单共 ' + r.suggestions.length +
       ' 条</p></div>';
   }
@@ -632,6 +645,19 @@ function bind() {
     if (t) openDrawer(t.dataset.id);
   });
   $('player-card').addEventListener('click', onPlayerCardClick);
+  $('event-report').addEventListener('click', async ev => {
+    const chip = ev.target.closest('.sug-chip');
+    if (!chip) return;
+    switchTab('decisions');
+    await refreshDecisionPanel();
+    const hit = document.querySelector('.action-card [data-id="' + chip.dataset.aid + '"]');
+    const card = hit ? hit.closest('.action-card') : null;
+    if (card) {
+      card.classList.add('flash');
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => card.classList.remove('flash'), 2000);
+    }
+  });
 }
 
 async function init() {

@@ -429,6 +429,46 @@ input[type="range"] {
 
 .chain-expl { color: var(--ink-2); line-height: 1.7; margin-top: 1px; }
 
+/* 因果链卡片：阶段徽章（盒宽与 .chain-num 一致，连接线 left:13px 对齐） */
+.chain-badge {
+  flex: none;
+  width: 27px; height: 18px;
+  margin-top: 3px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.chain-badge.b-perceive { background: #3b82c4; }
+.chain-badge.b-settle   { background: #e8871e; }
+.chain-badge.b-compute  { background: #22a06b; }
+.chain-badge.b-rules    { background: #d9a514; }
+
+/* 建议芯片：可点击，直达决策中心对应卡片 */
+.sug-chip {
+  display: inline-block;
+  margin: 2px 6px 2px 0;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-dark);
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sug-chip:hover { border-color: var(--c-supplier); background: #fdf6ec; }
+
+/* 芯片跳转后的目标卡片高亮 */
+.flash {
+  outline: 2px solid var(--c-supplier);
+  outline-offset: 2px;
+}
+
 /* VIP 卡片 */
 .obj-card {
   border: 1px solid var(--hairline);
