@@ -782,6 +782,36 @@ input[type="range"] {
   border-radius: 6px; color: #3b82c4;
 }
 
+/* 规则手册(学习路径 Tab) */
+.rule-group-title {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  letter-spacing: 0.06em; margin: 14px 0 8px;
+}
+
+.rule-card {
+  border: 1px solid #e5e1d8; border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 8px; background: #fdfcfa;
+}
+
+.rule-name { font-weight: 700; color: #1f2937; margin: 0 0 4px; }
+
+.rule-summary { font-size: 13px; color: #64748b; margin: 0 0 6px; }
+
+.rule-conditions { margin: 0 0 6px; padding-left: 18px; }
+
+.rule-conditions li {
+  font-size: 13px; color: #1f2937; line-height: 1.6;
+}
+
+.rule-dynamic {
+  font-weight: 700; color: #b45309;
+}
+
+.rule-meta {
+  font-size: 11px; color: var(--muted);
+  border-top: 1px dashed var(--hairline); padding-top: 5px;
+}
+
 .btn-relayout {
   margin-left: auto;
   border: 1px solid #cfcabb; background: #fff; color: #64748b;
