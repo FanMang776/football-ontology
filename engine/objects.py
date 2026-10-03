@@ -81,7 +81,7 @@ class PlayerObject(BaseObject):
     def _explain(self, kb, state):
         g = kb.material
         now = [f"体能 {state['fitness']}"]
-        why = [f"体能 = 100 − 出场/训练消耗 + 轮休回复（fitness 公式，见 engine/objects.py）"]
+        why = [f"体能 = 100 − 出场/训练消耗 + 轮休恢复（fitness 公式，见 engine/objects.py）"]
         recs = list(g.objects(self.iri, EX.injuredWith))
         if recs:
             for rec in sorted(recs, key=str):
