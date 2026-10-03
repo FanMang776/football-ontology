@@ -64,11 +64,11 @@ def test_vetoed_action_not_suggested():
 
 # ---------- 规则手册(rule_meta)契约 ----------
 
-import os
+from pathlib import Path
 
 import pytest
 
-from engine.actions import EFFECTS
+from engine.actions import OPS
 from engine.rule_meta import RULES, render
 
 ALL_RULE_IDS = {"rest-player", "callup-youth", "start-treatment",
@@ -79,7 +79,7 @@ ALL_RULE_IDS = {"rest-player", "callup-youth", "start-treatment",
 def test_rule_handbook_covers_all_action_types():
     """新增动作类型而漏写手册 → 红。"""
     sug = [r for r in RULES if r["category"] == "suggestion"]
-    assert len(sug) == len(EFFECTS)
+    assert len(sug) == len(OPS)
     assert {r["id"] for r in sug} == {"rest-player", "callup-youth", "start-treatment"}
 
 
@@ -89,9 +89,10 @@ def test_rule_handbook_covers_governance():
 
 
 def test_rule_handbook_chapter_files_exist():
+    repo_root = Path(__file__).resolve().parent.parent
     for r in RULES:
         for ch in r["chapter"]:
-            assert os.path.exists(ch), f"{r['id']} 的章节 {ch} 不存在"
+            assert (repo_root / ch).exists(), f"{r['id']} 的章节 {ch} 不存在"
 
 
 def test_render_formats_current_params():
