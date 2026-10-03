@@ -452,14 +452,15 @@ function onPlayerCardClick(ev) {
 /* ---------- Tab 四：决策中心 ---------- */
 
 async function loadActions() {
-  const list = await api('/api/actions');
+  const data = await api('/api/actions');
+  $('roster-line').textContent = '报名 ' + data.roster.count + '/' + data.roster.limit;
   const box = $('actions-list');
+  const list = data.actions;
   if (!list.length) {
     box.innerHTML = '<div class="empty">没有待处置的建议动作——<br>执行效果已写回图谱，重新推理后建议自动消失。</div>';
     return;
   }
-  box.innerHTML = list.map(a =>
-    '<div class="action-card"><div class="action-head">' +
+  box.innerHTML = list.map(a =>    '<div class="action-card"><div class="action-head">' +
     '<span class="type-badge">' + esc(ACTION_ZH[a.type] || a.type) + '</span>' +
     '<span class="action-btns">' +
     '<button class="action-preview" data-id="' + esc(a.id) + '">预览影响</button>' +

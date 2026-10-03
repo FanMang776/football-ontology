@@ -168,7 +168,8 @@ def entity(eid: str):
 
 @app.get("/api/actions")
 def actions():
-    return kb.list_actions()
+    """建议清单 + 报名名单计数（征调前置条件的可见面）。"""
+    return {"actions": kb.list_actions(), "roster": kb.roster_view()}
 
 
 @app.post("/api/preview-action/{aid}")
@@ -212,6 +213,16 @@ def reset():
     return {"ok": True}
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """静态资源加 Cache-Control: no-cache——可缓存但每次必须协商校验
+    （ETag 未变仍 304），前端改版即时生效，不吃浏览器启发式缓存。"""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 web_dir = Path(__file__).resolve().parent.parent / "web"
 if web_dir.exists():
-    app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
+    app.mount("/", NoCacheStaticFiles(directory=web_dir, html=True), name="web")

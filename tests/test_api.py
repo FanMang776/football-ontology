@@ -71,10 +71,34 @@ def test_graph_cls_picks_most_specific_type(client):
     assert nodes["p_yam1"] == "AttackingMidfielder"   # 与 YouthPlayer 同深，字母序兜底
 
 
+def test_static_no_cache_header(client):
+    """静态资源必须协商缓存：改版后浏览器强刷新不再必要。"""
+    r = client.get("/")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == "no-cache"
+
+
+def test_actions_includes_roster(client):
+    """/api/actions 携带报名名单计数（一线队 + 已征调青年队 / 上限 16）。"""
+    body = client.get("/api/actions").json()
+    assert body["roster"] == {"count": 14, "limit": 16}
+
+
+def test_roster_grows_after_callup(client):
+    """征调执行后报名 +1：效果事实（calledUp）计入名单。初始 14 + 执行 2 = 16。"""
+    acts = client.get("/api/actions").json()["actions"]
+    callups = [a for a in acts if a["type"] == "CallUpYouth"]
+    assert len(callups) == 2
+    for a in callups:
+        r = client.post(f"/api/action/{a['id']}/execute")
+        assert r.status_code == 200 and r.json()["ok"] is True
+    assert client.get("/api/actions").json()["roster"]["count"] == 16
+
+
 def test_execute_pending_returns_200(client):
     """审批动作第一次执行是合法中间态：200 + pending=true，不是 409。"""
     client.post("/api/events", json={"type": "injury", "player_id": "p_st1", "weeks_out": 4})
-    acts = client.get("/api/actions").json()
+    acts = client.get("/api/actions").json()["actions"]
     aid = next(a["id"] for a in acts
                if a["type"] == "StartTreatment"
                and any(t["id"] == "p_st1" for t in a["targets"]))

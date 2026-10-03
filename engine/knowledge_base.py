@@ -115,6 +115,12 @@ class KnowledgeBase:
         with self._lock:
             return sorted(self.audit, key=lambda e: e["step"])
 
+    def roster_view(self) -> dict:
+        """报名名单计数：一线队 + 已征调青年队（与征调前置条件同一实现点）。"""
+        with self._lock:
+            from engine.actions import _roster_count, ROSTER_LIMIT
+            return {"count": _roster_count(self), "limit": ROSTER_LIMIT}
+
     # ---------- 决策执行闭环 ----------
     def list_actions(self) -> list:
         out = []
