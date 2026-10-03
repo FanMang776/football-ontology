@@ -60,3 +60,51 @@ def test_vetoed_action_not_suggested():
     g.add((act, EX.vetoed, Literal(True)))
     r = rules(g)
     assert act not in r
+
+
+# ---------- 规则手册(rule_meta)契约 ----------
+
+import os
+
+import pytest
+
+from engine.actions import EFFECTS
+from engine.rule_meta import RULES, render
+
+ALL_RULE_IDS = {"rest-player", "callup-youth", "start-treatment",
+                "roster-limit", "treatment-approval",
+                "veto-suppression", "audit-trail"}
+
+
+def test_rule_handbook_covers_all_action_types():
+    """新增动作类型而漏写手册 → 红。"""
+    sug = [r for r in RULES if r["category"] == "suggestion"]
+    assert len(sug) == len(EFFECTS)
+    assert {r["id"] for r in sug} == {"rest-player", "callup-youth", "start-treatment"}
+
+
+def test_rule_handbook_covers_governance():
+    assert len([r for r in RULES if r["category"] == "governance"]) >= 4
+    assert {r["id"] for r in RULES} == ALL_RULE_IDS
+
+
+def test_rule_handbook_chapter_files_exist():
+    for r in RULES:
+        for ch in r["chapter"]:
+            assert os.path.exists(ch), f"{r['id']} 的章节 {ch} 不存在"
+
+
+def test_render_formats_current_params():
+    out = render({"fitness_floor": 90, "roster_limit": 16})
+    assert len(out) == 7
+    rest = next(r for r in out if r["id"] == "rest-player")
+    assert rest["conditions"][0] == {"text": "体能低于阈值 90", "dynamic": True}
+    assert rest["conditions"][1] == {"text": "近期高强度出场(任一场 ≥ 60 分钟)至少 3 场",
+                                     "dynamic": False}
+    limit = next(r for r in out if r["id"] == "roster-limit")
+    assert "16" in limit["conditions"][0]["text"]
+
+
+def test_render_missing_param_raises():
+    with pytest.raises(KeyError):
+        render({"fitness_floor": 60})   # 缺 roster_limit
