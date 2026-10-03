@@ -17,7 +17,8 @@ def find(kb, type_, contains):
     return None
 
 
-def test_treatment_needs_approval_then_executes():
+def test_treatment_needs_approval_then_heals():
+    """治疗两步审批：第一次 pending，第二次执行并真正移除伤病记录。"""
     kb = fresh()
     kb.dispatch(InjuryEvent(EX.p_st1, 4, "拉伤"))
     aid = find(kb, "StartTreatment", "p_st1")
@@ -25,6 +26,28 @@ def test_treatment_needs_approval_then_executes():
     assert first["ok"] is False and first.get("pending") is True
     second = kb.execute(aid)
     assert second["ok"] is True
+    assert not list(kb.material.objects(EX.p_st1, EX.injuredWith)), \
+        "治疗后伤病记录应从物化图消失"
+    assert not any(a["type"] == "StartTreatment"
+                   and any(t["id"] == "p_st1" for t in a["targets"])
+                   for a in kb.list_actions())
+
+
+def test_treatment_heals_declared_injury():
+    """声明层伤病（B费，data.ttl 初始数据）也能治：撤销也是写回。"""
+    kb = fresh()
+    assert list(kb.material.objects(EX.p_am2, EX.injuredWith)), "B费初始应有声明层伤情"
+    aid = find(kb, "StartTreatment", "p_am2")
+    assert aid, "B费伤停 4 周（≥3）应有治疗建议"
+    kb.execute(aid)                      # pending
+    out = kb.execute(aid)                # 队医确认
+    assert out["ok"] is True, out
+    assert not list(kb.material.objects(EX.p_am2, EX.injuredWith)), \
+        "声明层伤病应经 retractions 层撤销"
+    assert len(kb.retractions) > 0
+    assert not any(a["type"] == "StartTreatment"
+                   and any(t["id"] == "p_am2" for t in a["targets"])
+                   for a in kb.list_actions())
 
 
 def test_callup_roster_limit_vetoes():
@@ -51,7 +74,7 @@ def test_preview_does_not_mutate():
     aid = find(kb, "StartTreatment", "p_st1")
     before = len(kb.effects)
     p = kb.preview(aid)
-    assert p["additions"]
+    assert p["retractions"], "治疗的预览应显示将撤销的伤病三元组"
     assert len(kb.effects) == before
 
 

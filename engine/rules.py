@@ -36,12 +36,12 @@ SELECT DISTINCT ?p WHERE {
 """
 
 # ---------- 重伤 → 治疗 ----------
+# 治疗执行会移除伤病记录（engine/actions.py），条件随之消除、建议自动消失
 Q_TREATMENT = PREFIX + """
 SELECT DISTINCT ?p ?rec ?w WHERE {
     ?p a ex:Player ; ex:injuredWith ?rec .
     ?rec ex:weeksOut ?w .
     FILTER(?w >= 3)
-    FILTER NOT EXISTS { ?p ex:treated true }
 }
 """
 

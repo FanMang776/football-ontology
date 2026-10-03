@@ -481,7 +481,7 @@ async function previewOne(id) {
         '<div class="state-change add">＋ ' + esc(t) + '</div>').join('') : '') +
       (r.retractions.length ? r.retractions.map(t =>
         '<div class="state-change del">－ ' + esc(t) + '</div>').join('') : '') +
-      '<div class="why">执行前推演：以上三元组将在执行时写入 effects 层（效果即事实）。</div>';
+      '<div class="why">执行前推演：绿色三元组执行时写入 effects 层，红色三元组执行时移除（effects 删除或声明层撤销）——效果即事实。</div>';
     box.style.display = '';
   } catch (e) { toast(e.message, true); }
 }
