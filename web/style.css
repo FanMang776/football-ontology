@@ -878,3 +878,15 @@ input[type="range"] {
 }
 .cy-filters label:hover { background: rgba(31,41,55,0.06); }
 .cy-filters input { accent-color: #d9a514; }
+.cy-filters .preset {
+  border: 1px solid var(--hairline-dark);
+  background: #fff;
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.cy-filters .preset.active {
+  background: var(--ink); color: #fff; border-color: var(--ink);
+}

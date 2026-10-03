@@ -48,6 +48,12 @@ const EDGE_DECLARED = '#cbd5e1';
 const EDGE_INFERRED = '#7dd3fc';
 const WAVE_MS = 400;
 
+/* 核心视图默认类别：比赛/伤病/合同/训练课是事件流里才需要的实体，默认移出 */
+const CORE_CATS = ['Player', 'Club', 'Class'];
+
+const PRED_ZH = { playsFor: '效力', squadOf: '所属梯队', hasContract: '有合同',
+  injuredWith: '伤病', participatesIn: '出场', trainsIn: '参训', type: '是（类型）' };
+
 /* 语义推荐子图：与选中商品直接相连、值得展示的谓词（推荐可解释边 + 套装组成） */
 const FOCUS_PREDS = ['suppliedBy', 'isComponentOf', 'promotes', 'substituteFor',
   'compatibleWith', 'sameSeries', 'hasPart'];
@@ -115,16 +121,21 @@ function cyStylesheet() {
       'border-width': 1, 'border-color': 'rgba(31,41,55,0.18)'
     } },
     { selector: 'node[cls = "Class"]', style: {
-      shape: 'round-rectangle', width: 62, height: 46,
-      'border-color': '#cfcabb'
+      shape: 'round-rectangle', width: 44, height: 34,
+      'font-size': 20, 'border-color': '#d6d1c4',
+      'background-color': '#eceadf', 'z-index': 1
     } },
     { selector: 'edge', style: {
       width: 1.5, 'curve-style': 'bezier',
-      'line-color': EDGE_DECLARED, 'line-style': 'solid'
+      'line-color': EDGE_DECLARED, 'line-style': 'solid',
+      label: 'data(pzh)', 'font-size': 18, color: '#94a3b8',
+      'text-background-color': '#faf9f5', 'text-background-opacity': 1,
+      'text-background-padding': 2, 'text-rotation': 'autorotate'
     } },
     { selector: 'edge[?inferred]', style: {
       'line-style': 'dashed', 'line-color': EDGE_INFERRED
     } },
+    { selector: 'edge.hide-label', style: { label: '' } },
     { selector: 'node.dimmed', style: { opacity: 0.12 } },
     { selector: 'edge.dimmed', style: { opacity: 0.06 } },
     { selector: 'node.obj-ring', style: {
@@ -151,7 +162,8 @@ function graphElements(g) {
     data: { id: n.id, label: n.label, cls: n.cls, color: nodeColor(n.cls) }
   })).concat(g.edges.filter(e => ids.has(e.s) && ids.has(e.o)).map((e, i) => ({
     group: 'edges',
-    data: { id: 'e' + i, source: e.s, target: e.o, inferred: !!e.inferred }
+    data: { id: 'e' + i, source: e.s, target: e.o, inferred: !!e.inferred,
+            pzh: PRED_ZH[e.p] || e.p }
   })));
 }
 
@@ -168,11 +180,31 @@ const FILTER_ZH = {
   Contract: '合同', TrainingSession: '训练课', InjuryRecord: '伤病记录'
 };
 
+function updatePresetActive() {
+  const eq = arr => state.graphFilters.size === arr.length &&
+    arr.every(c => state.graphFilters.has(c));
+  document.querySelectorAll('#cy-filters [data-preset]').forEach(b =>
+    b.classList.toggle('active',
+      eq(b.dataset.preset === 'core' ? CORE_CATS : Object.keys(FILTER_ZH))));
+}
+
 function buildFilters() {
   const box = $('cy-filters');
-  // 合同和训练课是纯数量噪声，默认不勾；其余默认显示
-  state.graphFilters = new Set(Object.keys(FILTER_ZH)
-    .filter(c => c !== 'Contract' && c !== 'TrainingSession'));
+  // 核心视图：比赛/伤病/合同/训练课默认移出（事件流里才需要），预设按钮一键切换
+  state.graphFilters = new Set(CORE_CATS);
+  document.querySelectorAll('#cy-filters [data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.graphFilters = new Set(btn.dataset.preset === 'core' ? CORE_CATS
+        : Object.keys(FILTER_ZH));
+      box.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        const cat = Object.keys(FILTER_ZH)
+          .find(c => FILTER_ZH[c] === input.parentElement.textContent.trim());
+        if (cat) input.checked = state.graphFilters.has(cat);
+      });
+      applyGraphFilter();
+      updatePresetActive();
+    });
+  });
   Object.keys(FILTER_ZH).forEach(cat => {
     const label = document.createElement('label');
     const input = document.createElement('input');
@@ -182,11 +214,13 @@ function buildFilters() {
       if (input.checked) state.graphFilters.add(cat);
       else state.graphFilters.delete(cat);
       applyGraphFilter();
+      updatePresetActive();
     });
     label.appendChild(input);
     label.appendChild(document.createTextNode(FILTER_ZH[cat]));
     box.appendChild(label);
   });
+  updatePresetActive();
 }
 
 function applyGraphFilter() {
@@ -293,7 +327,7 @@ function buildLegend() {
     item.className = 'legend-item';
     item.innerHTML = '<i class="dot' + (cls === 'Class' ? ' dot-class' : '') +
       '" style="background:' + CLASS_COLORS[cls] + '"></i>' +
-      esc(CLASS_ZH[cls] || cls);
+      esc(CLASS_ZH[cls] || cls) + (cls === 'Class' ? '（结构，按需看）' : '');
     box.appendChild(item);
   });
 }
@@ -677,6 +711,9 @@ async function init() {
     minZoom: 0.2, maxZoom: 2.5
   });
   window.__cy = state.cy;   // 调试句柄（也可用于浏览器端测试）
+  state.cy.on('zoom', () => {
+    state.cy.elements().toggleClass('hide-label', state.cy.zoom() < 0.6);
+  });
   state.cy.on('tap', 'node', evt => {
     focusNeighborhood(evt.target);
     openDrawer(evt.target.id());
