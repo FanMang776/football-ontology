@@ -172,6 +172,12 @@ def actions():
     return {"actions": kb.list_actions(), "roster": kb.roster_view()}
 
 
+@app.get("/api/rules")
+def rules():
+    """规则手册：全部建议规则与治理机制（条件代入当前参数）。"""
+    return {"rules": kb.rules_view()}
+
+
 @app.post("/api/preview-action/{aid}")
 def preview_action(aid: str):
     result = kb.preview(aid)

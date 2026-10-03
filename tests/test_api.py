@@ -78,6 +78,21 @@ def test_static_no_cache_header(client):
     assert r.headers["cache-control"] == "no-cache"
 
 
+def test_rules_endpoint_lists_all(client):
+    rules = client.get("/api/rules").json()["rules"]
+    assert len(rules) == 7
+    assert {r["id"] for r in rules} == {
+        "rest-player", "callup-youth", "start-treatment",
+        "roster-limit", "treatment-approval", "veto-suppression", "audit-trail"}
+
+
+def test_rules_reflect_current_params(client):
+    client.post("/api/params", json={"fitness_floor": 90})
+    rules = client.get("/api/rules").json()["rules"]
+    rest = next(r for r in rules if r["id"] == "rest-player")
+    assert "90" in rest["conditions"][0]["text"]
+
+
 def test_actions_includes_roster(client):
     """/api/actions 携带报名名单计数（一线队 + 已征调青年队 / 上限 16）。"""
     body = client.get("/api/actions").json()
