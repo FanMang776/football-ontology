@@ -40,6 +40,8 @@ const AUDIT_RESULT_ZH = {
   vetoed: '被否决', failed: '已回滚'
 };
 
+const RULE_CATEGORY_ZH = { suggestion: '状态建议规则', governance: '治理边界' };
+
 const EDGE_DECLARED = '#cbd5e1';
 const EDGE_INFERRED = '#7dd3fc';
 const WAVE_MS = 400;
@@ -505,6 +507,23 @@ async function loadAudit() {
     : '<p class="rec-empty">暂无操作记录——注入一个事件或执行一条建议。</p>';
 }
 
+/* ---------- 规则手册(学习路径 Tab) ---------- */
+
+async function loadRules() {
+  const body = await api('/api/rules');
+  const groups = {};
+  body.rules.forEach(r => (groups[r.category] = groups[r.category] || []).push(r));
+  $('rule-handbook').innerHTML = ['suggestion', 'governance'].map(c =>
+    '<div class="rule-group"><div class="rule-group-title">' + RULE_CATEGORY_ZH[c] + '</div>' +
+    groups[c].map(r =>
+      '<div class="rule-card"><div class="rule-name">' + esc(r.name) + '</div>' +
+      '<div class="rule-summary">' + esc(r.summary) + '</div>' +
+      '<ul class="rule-conditions">' + r.conditions.map(c =>
+        '<li' + (c.dynamic ? ' class="rule-dynamic"' : '') + '>' + esc(c.text) + '</li>').join('') +
+      '</ul><div class="rule-meta">' + esc(r.code) + ' · ' + esc(r.chapter.join(' · ')) + '</div></div>'
+    ).join('') + '</div>').join('');
+}
+
 /* 阈值滑杆：改 fitness_floor，规则实时重算（VIP 滑杆的足球等价物） */
 let floorTimer = null;
 
@@ -514,7 +533,7 @@ function onFloorSlider() {
   floorTimer = setTimeout(async () => {
     try {
       await post('/api/params', { fitness_floor: +$('fitness-floor').value });
-      await loadActions();
+      await Promise.all([loadActions(), loadRules()]);
     } catch (e) { toast(e.message, true); }
   }, 300);
 }
@@ -529,7 +548,7 @@ async function resetDemo() {
     clearHighlights();
     closeDrawer();
     resetEventPanel();
-    await Promise.all([loadGraph(), loadActions(), loadAudit()]);
+    await Promise.all([loadGraph(), loadActions(), loadAudit(), loadRules()]);
     toast('演示已重置：事件、动作与审计均已清除');
   } catch (e) { toast(e.message, true); }
 }
@@ -587,7 +606,7 @@ function switchTab(name) {
   closeDrawer();
   if (name === 'decisions') refreshDecisionPanel().catch(e => toast(e.message, true));
   if (name === 'player') loadPlayerCard().catch(e => toast(e.message, true));
-  if (name === 'learn') { /* 静态内容 */ }
+  if (name === 'learn') loadRules().catch(e => toast(e.message, true));
 }
 
 /* ---------- 初始化 ---------- */
@@ -646,6 +665,7 @@ async function init() {
     $('cy-loading').textContent = '图谱加载失败';
     toast(e.message, true);
   }
+  loadRules().catch(() => {});
 }
 
 document.addEventListener('DOMContentLoaded', init);

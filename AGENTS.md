@@ -55,6 +55,7 @@ fitness 公式唯一实现点在 `engine/objects.py`（docstring 钉死），不
 - `engine/objects.py` — 对象运行时：`perceive/compute/describe`（五官里的"脑"）
 - `engine/world.py` — `World.dispatch`：感知 → 结算（事件写 effects）→ refresh → 全量重算（两段：先球员后俱乐部）→ 传导报告
 - `engine/rules.py` — 动作建议规则（轮休/征调/治疗；情况→建议；veto 三元组存在则不再建议）
+- `engine/rule_meta.py` — 规则手册：全部规则的声明式展示元数据（render 代入当前参数）；改规则时同步更新，契约测试防漂移
 - `engine/actions.py` — 动作治理：前置条件（报名 <16 否决并写 veto）、审批（StartTreatment 两步执行）、审计（kb.audit + tick 计数器）、预览（不落库）
 - `api/main.py` — FastAPI 接口 + 静态前端托管；`kb = KnowledgeBase()` 全局单例；审批中间态返回 200 + pending=true（不是 409）
 
