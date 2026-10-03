@@ -4,7 +4,7 @@ dispatch(event) 的钉死流程：
   1. 路由：把事件投给目标对象的收件箱（perceive）；
   2. 结算：事件效果作为新事实写入 effects 层（伤病/痊愈）——效果即事实；
   3. 重算：全部对象 compute() → 写 state 层 → kb.refresh()（推理 + 规则）；
-  4. 报告：状态变化 diff + 中文传导链 + 当前建议清单。
+  4. 报告：状态变化 diff + 结构化传导链（stage + 文案）+ 当前建议清单。
 
 伤病语义（计划钉死）：
   InjuryEvent 写 (球员, injuredWith, inj_节点)、(inj_节点, weeksOut, n)、
@@ -23,6 +23,10 @@ def _weeks_of(g, p) -> int:
     """该球员当前最重伤停周数（0 = 健康）。"""
     return max((int(g.value(r, EX.weeksOut) or 0)
                 for r in g.objects(p, EX.injuredWith)), default=0)
+
+
+EVENT_ZH = {"InjuryEvent": "受伤", "RecoveryEvent": "痊愈",
+            "MatchPlayedEvent": "比赛", "TrainingLoadEvent": "训练"}
 
 
 class World:
@@ -63,9 +67,13 @@ class World:
 
         objs = self._objects()
         target = objs.get(target_id)
+        chain = []
         if target is not None:
             target.perceive(event)
-        chain = self._settle(event)
+            name = _label(kb.material, event.player)
+            chain.append({"stage": "perceive",
+                          "text": f"「{name}」感知到{EVENT_ZH[type(event).__name__]}，进入收件箱"})
+        chain += self._settle(event)
         kb.refresh()          # 事件效果进物化图，compute 才能看到新事实
         self._compute_all(objs)
         after = {str(s): int(v) for s, v in kb.state.subject_objects(EX.fitness)}
@@ -74,11 +82,18 @@ class World:
                     "new": after.get(str(s))}
                    for s in sorted(set(before) | set(after), key=str)
                    if before.get(str(s)) != after.get(str(s))]
+        chain.append({"stage": "compute",
+                      "text": f"派生状态全量重算：{len(changes)} 名对象状态变化"})
+
+        suggestions = kb.list_actions()
+        chain.append({"stage": "rules",
+                      "text": f"规则重算：当前全球建议 {len(suggestions)} 条"
+                              f"（建议是推论，随事实即时重算）"})
 
         return {"event": report_event,
                 "state_changes": changes,
                 "chain": chain,
-                "suggestions": kb.list_actions()}
+                "suggestions": suggestions}
 
     # ---------- 事件效果结算（嘴：世界里的新事实） ----------
     def _settle(self, event) -> list:
@@ -99,20 +114,23 @@ class World:
                         for t in list(kb.declared.triples((rec, EX.weeksOut, None))):
                             kb.retractions.add(t)
                     kb.effects.add((rec, EX.weeksOut, Literal(event.weeks_out)))
-                    chain.append(f"「{name}」伤情加重：伤停周数 "
-                                 f"max({old}, {event.weeks_out}) = {event.weeks_out}，"
-                                 f"记录已更新（不新增记录）")
+                    chain.append({"stage": "settle",
+                                  "text": f"「{name}」伤情加重：伤停周数 "
+                                          f"max({old}, {event.weeks_out}) = {event.weeks_out}，"
+                                          f"记录已更新（不新增记录）"})
                 else:
-                    chain.append(f"「{name}」已有伤情（伤停 {old} 周），"
-                                 f"新事件 {event.weeks_out} 周不更重，记录不变")
+                    chain.append({"stage": "settle",
+                                  "text": f"「{name}」已有伤情（伤停 {old} 周），"
+                                          f"新事件 {event.weeks_out} 周不更重，记录不变"})
             else:
                 rec = EX[f"inj_{_id(event.player)}"]
                 kb.effects.add((event.player, EX.injuredWith, rec))
                 kb.effects.add((rec, RDF.type, EX.InjuryRecord))
                 kb.effects.add((rec, RDFS.label, Literal(event.kind, lang="zh")))
                 kb.effects.add((rec, EX.weeksOut, Literal(event.weeks_out)))
-                chain.append(f"事件命中「{name}」：伤情「{event.kind}」写入 effects 层，"
-                             f"伤停 {event.weeks_out} 周——效果即事实，下次刷新即可查询")
+                chain.append({"stage": "settle",
+                              "text": f"事件命中「{name}」：伤情「{event.kind}」写入 effects 层，"
+                                      f"伤停 {event.weeks_out} 周——效果即事实，下次刷新即可查询"})
         elif isinstance(event, ev.RecoveryEvent):
             recs = list(kb.effects.objects(event.player, EX.injuredWith))
             for rec in recs:
@@ -120,15 +138,18 @@ class World:
                     kb.effects.remove(t)
                 kb.effects.remove((event.player, EX.injuredWith, rec))
             if recs:
-                chain.append(f"「{name}」痊愈：伤病记录从 effects 层移除")
+                chain.append({"stage": "settle",
+                              "text": f"「{name}」痊愈：伤病记录从 effects 层移除"})
             else:
-                chain.append(f"「{name}」本无运行时伤情，痊愈事件无事发生")
+                chain.append({"stage": "settle",
+                              "text": f"「{name}」本无运行时伤情，痊愈事件无事发生"})
         elif isinstance(event, ev.MatchPlayedEvent):
             # 效果即事实：出场分钟写入 effects 层（注意 RDF 集合语义——
             # 与既有值相同的分钟数不重复累加惩罚，教学上视为同一事实）
             kb.effects.add((event.player, EX.minutesPlayed, Literal(event.minutes)))
-            chain.append(f"「{name}」感知到比赛事件：出场 {event.minutes} 分钟"
-                         f"（minutesPlayed 写入 effects，状态由 compute 重算）")
+            chain.append({"stage": "settle",
+                          "text": f"「{name}」感知到比赛事件：出场 {event.minutes} 分钟"
+                                  f"（minutesPlayed 写入 effects，状态由 compute 重算）"})
         elif isinstance(event, ev.TrainingLoadEvent):
             base = f"t_evt_{_id(event.player)}"
             k = 1
@@ -140,10 +161,12 @@ class World:
             kb.effects.add((node, RDF.type, EX.TrainingSession))
             kb.effects.add((node, RDFS.label, Literal("事件注入的训练课", lang="zh")))
             kb.effects.add((node, EX.load, Literal(event.load)))
-            chain.append(f"「{name}」感知到训练事件：负荷 {event.load}"
-                         f"（新训练课节点写入 effects）")
+            chain.append({"stage": "settle",
+                          "text": f"「{name}」感知到训练事件：负荷 {event.load}"
+                                  f"（新训练课节点写入 effects）"})
         else:
-            chain.append(f"未知事件类型 {type(event).__name__}，世界无变化")
+            chain.append({"stage": "settle",
+                          "text": f"未知事件类型 {type(event).__name__}，世界无变化"})
         return chain
 
     # ---------- 全量重算（脑：派生状态 → 推理 → 规则） ----------

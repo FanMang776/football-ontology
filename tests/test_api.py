@@ -33,6 +33,18 @@ def test_injury_event_returns_report(client):
     assert "chain" in body and "suggestions" in body
 
 
+def test_event_chain_steps_structured(client):
+    r = client.post("/api/events", json={"type": "injury", "player_id": "p_st1", "weeks_out": 4})
+    assert r.status_code == 200
+    steps = r.json()["chain"]
+    assert steps and all(set(s) == {"stage", "text"} and s["text"] for s in steps)
+    stages = [s["stage"] for s in steps]
+    assert stages == ["perceive", "settle", "compute", "rules"]
+    audit = client.get("/api/audit").json()
+    assert audit[0]["detail"]              # 审计 detail 取 settle 步文案，非空且是字符串
+    assert isinstance(audit[0]["detail"], str)
+
+
 def test_describe_object(client):
     r = client.get("/api/object/p_am1/describe")
     assert r.status_code == 200

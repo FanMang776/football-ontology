@@ -93,12 +93,19 @@ class KnowledgeBase:
     def dispatch(self, event) -> dict:
         with self._lock:
             report = self.world.dispatch(event)
+
+            def settle_text():
+                for step in report["chain"]:
+                    if step["stage"] == "settle":
+                        return step["text"]
+                return report["chain"][0]["text"] if report["chain"] else ""
+
             self.audit.append({"step": self.next_step(),
                                "action": "-",
                                "type": report["event"]["type"],
                                "target": report["event"]["target"] or "",
                                "result": "event",
-                               "detail": report["chain"][0] if report["chain"] else ""})
+                               "detail": settle_text()})
             return report
 
     def describe(self, object_id: str) -> dict:
