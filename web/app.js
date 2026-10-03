@@ -59,7 +59,7 @@ const FOCUS_PREDS = ['suppliedBy', 'isComponentOf', 'promotes', 'substituteFor',
   'compatibleWith', 'sameSeries', 'hasPart'];
 
 const state = { graph: null, cy: null, currentTab: 'overview', waveTimer: null,
-  filtered: false, graphFilters: null };
+  filtered: false, graphFilters: null, lastReport: null };
 
 /* ---------- 基础设施 ---------- */
 
@@ -401,20 +401,27 @@ function onEventTypeChange() {
   });
 }
 
+async function postEvent(type, playerId, extra) {
+  const body = Object.assign({ type, player_id: playerId }, extra || {});
+  try {
+    const r = await post('/api/events', body);
+    state.lastReport = r;
+    renderEventReport(r);
+    toast('事件已注入世界');
+    await Promise.all([loadGraph(), refreshDecisionPanel()]);
+    return r;
+  } catch (e) { toast(e.message, true); return null; }
+}
+
 async function sendEvent() {
   const type = $('event-type').value;
   const player = $('event-player').value;
   if (!player) { toast('请先选择球员', true); return; }
-  const body = { type, player_id: player };
-  if (type === 'match') body.minutes = +$('event-minutes').value;
-  if (type === 'training') body.load = +$('event-load').value;
-  if (type === 'injury') body.weeks_out = +$('event-weeks').value;
-  try {
-    const r = await post('/api/events', body);
-    renderEventReport(r);
-    toast('事件已注入世界');
-    await Promise.all([loadGraph(), refreshDecisionPanel()]);
-  } catch (e) { toast(e.message, true); }
+  const extra = {};
+  if (type === 'match') extra.minutes = +$('event-minutes').value;
+  if (type === 'training') extra.load = +$('event-load').value;
+  if (type === 'injury') extra.weeks_out = +$('event-weeks').value;
+  await postEvent(type, player, extra);
 }
 
 function nodeLabel(id) {
@@ -513,7 +520,8 @@ async function loadActions() {
     '<span class="type-badge">' + esc(ACTION_ZH[a.type] || a.type) + '</span>' +
     '<span class="action-btns">' +
     '<button class="action-preview" data-id="' + esc(a.id) + '">预览影响</button>' +
-    '<button class="action-execute" data-id="' + esc(a.id) + '">执行</button></span></div>' +
+    '<button class="action-execute" data-id="' + esc(a.id) + '">' +
+    (a.pending ? '确认执行' : '执行') + '</button></span></div>' +
     '<div class="action-targets">对象：' + a.targets.map(t =>
       '<span class="target" data-id="' + esc(t.id) + '">' + esc(t.label) + '</span>').join('') +
     '</div><div class="why">' + esc(a.reason) + '</div>' +
@@ -539,8 +547,12 @@ async function executeOne(id, btn) {
   try {
     const r = await post('/api/action/' + encodeURIComponent(id) + '/execute');
     toast(r.message || (r.pending ? '已登记待审批' : '已执行'), r.ok === false);
-    if (r.pending) { btn.textContent = '确认执行'; }
     await Promise.all([loadActions(), loadAudit(), loadGraph()]);
+    if (r.pending) {
+      // 重渲染后再标记：innerHTML 已重建，必须在最新 DOM 上改按钮
+      const b = document.querySelector('.action-execute[data-id="' + id + '"]');
+      if (b) b.textContent = '确认执行';
+    }
   } catch (e) { toast(e.message, true); }
 }
 
@@ -595,6 +607,7 @@ async function resetDemo() {
     clearHighlights();
     closeDrawer();
     resetEventPanel();
+    state.lastReport = null;
     await Promise.all([loadGraph(), loadActions(), loadAudit(), loadRules()]);
     toast('演示已重置：事件、动作与审计均已清除');
   } catch (e) { toast(e.message, true); }
@@ -639,6 +652,97 @@ async function openDrawer(id) {
 
 function closeDrawer() { $('drawer').classList.remove('open'); }
 
+/* ---------- 剧情模式：九步引导剧本 ---------- */
+
+const TOUR = [
+  { tab: 'overview',
+    text: '灰色实线是声明的事实，青色虚线是 OWL-RL 推理得出的结论——本体让世界「可推理」，图里已经能看到位置子类树的推论。',
+    highlight: '.canvas-legend' },
+  { tab: 'overview',
+    text: '点开任意球员节点：抽屉里「声明的事实」与「推断的事实」分组展示——推断层永不落库，随事实即时重算。',
+    highlight: 'graph:p_dm1' },
+  { tab: 'player',
+    text: '问一个对象四句话：是谁？现在状态？为什么？能做什么？——这就是对象运行时 describe() 的灵魂。先在下方选一名球员。',
+    highlight: '#player-card' },
+  { tab: 'events',
+    text: '事件是世界唯一的输入通道。现在让亚马尔受伤 4 周——刚才点「下一步」时已自动注入，看右侧因果链。',
+    highlight: '#btn-send-event',
+    action: () => postEvent('injury', 'p_yam1', { weeks_out: 4 }) },
+  { tab: 'events',
+    text: '因果链卡片：感知→结算→派生→规则——一次事件如何震动世界，一屏读完。',
+    highlight: '#event-report' },
+  { tab: 'decisions',
+    text: '建议是推论，不是数据：受伤事实一写入 effects 层，治疗/征调建议自动出现。',
+    highlight: '#actions-list' },
+  { tab: 'decisions',
+    text: '治理有边界：治疗要两步审批。刚才已自动执行第一步（登记待审批），对应的「执行」按钮已变「确认执行」——你自己点完这一步。',
+    highlight: '#actions-list',
+    action: async () => {
+      await refreshDecisionPanel();
+      const data = await api('/api/actions');
+      const act = data.actions.find(a => a.type === 'StartTreatment');
+      if (act) await executeOne(act.id, null);
+    } },
+  { tab: 'decisions',
+    text: '审计全程留痕（step 计数器，不用时钟）；执行后效果写回图谱、建议随之消失——这就是「建议=推论」的闭环。',
+    highlight: '#audit-list' },
+  { tab: 'learn',
+    text: '五个 Tab 是 learn/ 四章教程的可视化对应物。想深入？跟着下面的学习路径一章章读下去。',
+    highlight: '.learn-card' }
+];
+
+const tour = { active: false, i: 0, done: new Set() };
+
+function clearTourHighlights() {
+  document.querySelectorAll('.tour-spot').forEach(el => el.classList.remove('tour-spot'));
+  if (state.cy) state.cy.nodes().removeClass('wave-3');
+}
+
+async function showStep(i, forward) {
+  tour.i = i;
+  const t = TOUR[i];
+  clearTourHighlights();
+  switchTab(t.tab);
+  if (t.action && forward && !tour.done.has(i)) {
+    tour.done.add(i);
+    try { await t.action(); } catch (e) { toast(e.message, true); }
+  }
+  // switchTab 会 resetEventPanel——用最近一次报告恢复因果链卡片
+  if (t.tab === 'events' && state.lastReport) renderEventReport(state.lastReport);
+  $('tour-text').textContent = '第 ' + (i + 1) + '/' + TOUR.length + ' 步 · ' + t.text;
+  $('tour-progress').innerHTML = TOUR.map((_, k) =>
+    '<i class="tour-dot' + (k === i ? ' on' : (k < i ? ' done' : '')) + '"></i>').join('');
+  $('tour-next').textContent = i === TOUR.length - 1 ? '完成' : '下一步';
+  requestAnimationFrame(() => {
+    if (!t.highlight) return;
+    if (t.highlight.startsWith('graph:')) {
+      if (state.cy) {
+        const n = state.cy.getElementById(t.highlight.slice(6));
+        if (n.nonempty()) n.addClass('wave-3');
+      }
+    } else {
+      const el = document.querySelector(t.highlight);
+      if (el) el.classList.add('tour-spot');
+    }
+  });
+}
+
+async function startTour() {
+  let audit = [];
+  try { audit = await api('/api/audit'); } catch { /* 后端未起时照样能看剧情 */ }
+  $('tour-notice').hidden = audit.length === 0;
+  $('tour-dock').hidden = false;
+  tour.active = true;
+  tour.done.clear();
+  await showStep(0, false);
+}
+
+function endTour() {
+  tour.active = false;
+  $('tour-dock').hidden = true;
+  clearTourHighlights();
+}
+
 /* ---------- Tab 切换 ---------- */
 
 function switchTab(name) {
@@ -670,6 +774,17 @@ function bind() {
   $('fitness-floor').addEventListener('input', onFloorSlider);
   $('player-select').addEventListener('change', loadPlayerCard);
   $('btn-reset').addEventListener('click', resetDemo);
+  $('btn-tour').addEventListener('click', () => tour.active ? endTour() : startTour());
+  $('tour-next').addEventListener('click', async () => {
+    if (tour.i >= TOUR.length - 1) { endTour(); toast('剧情走完——接下来自由探索'); return; }
+    await showStep(tour.i + 1, true);
+  });
+  $('tour-prev').addEventListener('click', () => showStep(Math.max(0, tour.i - 1), false));
+  $('tour-exit').addEventListener('click', endTour);
+  $('tour-reset').addEventListener('click', async () => {
+    await resetDemo();
+    $('tour-notice').hidden = true;
+  });
   $('actions-list').addEventListener('click', ev => {
     const pb = ev.target.closest('.action-preview');
     if (pb) { previewOne(pb.dataset.id); return; }

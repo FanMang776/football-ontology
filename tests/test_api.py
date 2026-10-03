@@ -111,6 +111,20 @@ def test_actions_includes_roster(client):
     assert body["roster"] == {"count": 14, "limit": 16}
 
 
+def test_actions_marks_pending_after_first_execute(client):
+    """审批动作第一次执行后，/api/actions 的对应条目带 pending 标志——
+    前端据此渲染「确认执行」，切 Tab/刷新后不丢。"""
+    aid = next(a["id"] for a in client.get("/api/actions").json()["actions"]
+               if a["type"] == "StartTreatment")
+    assert client.post(f"/api/action/{aid}/execute").json()["pending"] is True
+    row = next(a for a in client.get("/api/actions").json()["actions"]
+               if a["id"] == aid)
+    assert row["pending"] is True
+    others = [a for a in client.get("/api/actions").json()["actions"]
+              if a["id"] != aid]
+    assert all(a.get("pending") is False for a in others)
+
+
 def test_roster_grows_after_callup(client):
     """征调执行后报名 +1：效果事实（calledUp）计入名单。初始 14 + 执行 2 = 16。"""
     acts = client.get("/api/actions").json()["actions"]

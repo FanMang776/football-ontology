@@ -142,7 +142,8 @@ class KnowledgeBase:
                         "type": info["type"],
                         "targets": [{"id": _id(t), "label": _label(self.material, t)}
                                      for t in info["targets"]],
-                        "reason": info["reason"]})
+                        "reason": info["reason"],
+                        "pending": _id(act) in self.pending})
         return out
 
     def execute(self, action_id: str) -> dict:

@@ -778,6 +778,58 @@ input[type="range"] {
   to { opacity: 1; transform: none; }
 }
 
+/* ═══ 剧情模式 ═══ */
+
+.tour-entry { margin-left: var(--space-3); }
+
+.tour-dock {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 18px;
+  width: min(680px, 92vw);
+  background: var(--card);
+  border: 1px solid var(--hairline-dark);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 30px rgba(31, 41, 55, 0.18);
+  padding: var(--space-3) var(--space-4);
+  z-index: 50;
+}
+
+.tour-progress { display: flex; gap: 5px; margin-bottom: var(--space-2); }
+
+.tour-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--hairline-dark);
+}
+.tour-dot.on { background: var(--ink); }
+.tour-dot.done { background: var(--muted-2); }
+
+.tour-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--danger);
+  margin-bottom: var(--space-2);
+}
+
+.tour-text {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.8;
+  margin-bottom: var(--space-2);
+}
+
+.tour-btns { display: flex; gap: var(--space-2); }
+
+.tour-spot {
+  outline: 2px solid var(--warn);
+  outline-offset: 3px;
+  border-radius: var(--radius);
+}
+
 /* ═══ 响应式（至 1100px） ═══ */
 
 @media (max-width: 1280px) {
