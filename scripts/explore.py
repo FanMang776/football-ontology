@@ -99,6 +99,8 @@ def step5():
     p = kb.preview(act["id"])
     for t in p["additions"]:
         print(f"  将写入：{t}")
+    for t in p["retractions"]:
+        print(f"  将移除：{t}")
 
     print(f"\n== 执行（第一次：审批门）==")
     first = kb.execute(act["id"])

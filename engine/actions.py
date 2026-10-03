@@ -18,13 +18,37 @@ from engine.namespaces import EX
 
 ROSTER_LIMIT = 16
 
-EFFECTS = {
-    "RestPlayer": lambda targets: (
-        [(targets[0], EX.restGiven, Literal(True))], []),
-    "CallUpYouth": lambda targets: (
-        [(targets[0], EX.calledUp, Literal(True))], []),
-    "StartTreatment": lambda targets: (
-        [(targets[0], EX.treated, Literal(True))], []),
+
+def _rest_ops(kb, targets):
+    return [(targets[0], EX.restGiven, Literal(True))], [], []
+
+
+def _callup_ops(kb, targets):
+    return [(targets[0], EX.calledUp, Literal(True))], [], []
+
+
+def _treatment_ops(kb, targets):
+    """治疗 = 移除目标球员的全部伤病记录：effects 层记录直接删除，
+    声明层记录写 retractions 撤销（撤销也是写回）。条件随之消除，
+    治疗建议自动消失——痊愈仍由 RecoveryEvent 事件驱动，二者独立。"""
+    p = targets[0]
+    drop, retract = [], []
+    for rec in sorted(set(kb.material.objects(p, EX.injuredWith)), key=str):
+        link = (p, EX.injuredWith, rec)
+        if link in kb.effects:
+            drop.append(link)
+        if link in kb.declared:
+            retract.append(link)
+        drop.extend(kb.effects.triples((rec, None, None)))
+        retract.extend(kb.declared.triples((rec, None, None)))
+    return [], drop, retract
+
+
+# 每类动作返回 (写进 effects 的, 从 effects 删除的, 撤销 declared 的)
+OPS = {
+    "RestPlayer": _rest_ops,
+    "CallUpYouth": _callup_ops,
+    "StartTreatment": _treatment_ops,
 }
 
 APPROVAL = {"StartTreatment"}
@@ -73,8 +97,8 @@ def execute(kb, action_id: str) -> dict:
         return {"ok": False,
                 "message": f"动作 {action_id} 不在当前建议清单中（可能已执行或条件已变化）"}
     kind = info["type"]
-    factory = EFFECTS.get(kind)
-    if factory is None:
+    ops = OPS.get(kind)
+    if ops is None:
         return {"ok": False, "message": f"未知动作类型 {kind}"}
     targets = info["targets"]
 
@@ -94,9 +118,11 @@ def execute(kb, action_id: str) -> dict:
         _record(kb, action_id, info, "vetoed", msg)
         return {"ok": False, "message": msg}
 
-    additions, retractions = factory(targets)
+    additions, removals, retractions = ops(kb, targets)
     for t in additions:
         kb.effects.add(t)
+    for t in removals:
+        kb.effects.remove(t)
     for t in retractions:
         kb.retractions.add(t)
     # 效果即事实：写回后重算派生状态（如轮休 +20 体能）再刷新推理，
@@ -106,6 +132,8 @@ def execute(kb, action_id: str) -> dict:
         # 二次防护：执行后条件应已消除；未消除则回滚本次效果
         for t in additions:
             kb.effects.remove(t)
+        for t in removals:
+            kb.effects.add(t)
         for t in retractions:
             kb.retractions.remove(t)
         kb.world.bootstrap()
@@ -116,18 +144,19 @@ def execute(kb, action_id: str) -> dict:
 
 
 def preview(kb, action_id: str) -> dict:
-    """执行前推演：返回将新增/撤销的三元组（短名），不落库。"""
+    """执行前推演：返回将写入/从世界移除的三元组（短名），不落库。
+    从世界移除 = effects 删除 + declared 撤销，都归入 retractions 展示。"""
     act = EX[action_id]
     info = kb.action_reasons.get(act)
     if info is None:
         return {"ok": False, "additions": [], "retractions": [],
                 "message": f"动作 {action_id} 不在当前建议清单中"}
-    factory = EFFECTS.get(info["type"])
-    if factory is None:
+    ops = OPS.get(info["type"])
+    if ops is None:
         return {"ok": False, "additions": [], "retractions": [],
                 "message": f"未知动作类型 {info['type']}"}
-    additions, retractions = factory(info["targets"])
+    additions, removals, retractions = ops(kb, info["targets"])
     fmt = lambda t: " ".join(_short(x) for x in t)
     return {"ok": True,
             "additions": [fmt(t) for t in additions],
-            "retractions": [fmt(t) for t in retractions]}
+            "retractions": [fmt(t) for t in removals + retractions]}

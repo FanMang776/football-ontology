@@ -168,11 +168,6 @@ ex:calledUp a owl:DatatypeProperty ;
     rdfs:range xsd:boolean ;
     rdfs:label "已征调"@zh .
 
-ex:treated a owl:DatatypeProperty ;
-    rdfs:domain ex:Player ;
-    rdfs:range xsd:boolean ;
-    rdfs:label "已治疗"@zh .
-
 ex:vetoed a owl:DatatypeProperty ;
     rdfs:range xsd:boolean ;
     rdfs:label "被治理规则否决"@zh .
