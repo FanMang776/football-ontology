@@ -515,7 +515,7 @@ async function loadRules() {
   body.rules.forEach(r => (groups[r.category] = groups[r.category] || []).push(r));
   $('rule-handbook').innerHTML = ['suggestion', 'governance'].map(c =>
     '<div class="rule-group"><div class="rule-group-title">' + RULE_CATEGORY_ZH[c] + '</div>' +
-    groups[c].map(r =>
+    (groups[c] || []).map(r =>
       '<div class="rule-card"><div class="rule-name">' + esc(r.name) + '</div>' +
       '<div class="rule-summary">' + esc(r.summary) + '</div>' +
       '<ul class="rule-conditions">' + r.conditions.map(c =>

@@ -124,9 +124,8 @@ class KnowledgeBase:
     def rules_view(self) -> list:
         """规则手册：阈值代入当前参数。"""
         with self._lock:
-            from engine.actions import ROSTER_LIMIT
-            from engine.rule_meta import render
-            return render(dict(self.params) | {"roster_limit": ROSTER_LIMIT})
+            from engine.rule_meta import DEFAULT_PARAMS, render
+            return render(DEFAULT_PARAMS | dict(self.params))
 
     # ---------- 决策执行闭环 ----------
     def list_actions(self) -> list:
