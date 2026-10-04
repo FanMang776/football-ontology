@@ -815,6 +815,9 @@ input[type="range"] {
   margin-bottom: var(--space-2);
 }
 
+/* display:flex 会盖过 UA 的 [hidden]——没有这条，干净世界会常显「建议重置」 */
+.tour-notice[hidden] { display: none; }
+
 .tour-text {
   font-size: 13px;
   color: var(--ink-2);
