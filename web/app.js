@@ -48,8 +48,9 @@ const EDGE_DECLARED = '#cbd5e1';
 const EDGE_INFERRED = '#7dd3fc';
 const WAVE_MS = 400;
 
-/* 核心视图默认类别：比赛/伤病/合同/训练课是事件流里才需要的实体，默认移出 */
-const CORE_CATS = ['Player', 'Club', 'Class'];
+/* 核心视图默认类别：只看实例与业务关系。类（TBox）节点随类型边一起默认移出——
+   它们的边（rdf:type）默认隐藏后，类节点只会是没有连线的孤岛；完整视图可勾回 */
+const CORE_CATS = ['Player', 'Club'];
 
 const PRED_ZH = { playsFor: '效力', squadOf: '所属梯队', hasContract: '有合同',
   injuredWith: '伤病', participatesIn: '出场', trainsIn: '参训', type: '是（类型）' };
@@ -132,6 +133,10 @@ function cyStylesheet() {
       'line-style': 'dashed', 'line-color': EDGE_INFERRED
     } },
     { selector: 'edge.hide-label', style: { label: '' } },
+    // 类型边（rdf:type）默认隐藏，点节点聚焦邻域时才显示该节点的类型边——
+    // 否则每个实体至少两条「属于」边把业务关系糊满
+    { selector: 'edge.type-edge', style: { display: 'none' } },
+    { selector: 'edge.type-edge.show-type', style: { display: 'element' } },
     { selector: 'node.dimmed', style: { opacity: 0.12 } },
     { selector: 'edge.dimmed', style: { opacity: 0.06 } },
     { selector: 'node.obj-ring', style: {
@@ -159,7 +164,8 @@ function graphElements(g) {
   })).concat(g.edges.filter(e => ids.has(e.s) && ids.has(e.o)).map((e, i) => ({
     group: 'edges',
     data: { id: 'e' + i, source: e.s, target: e.o, inferred: !!e.inferred,
-            pzh: PRED_ZH[e.p] || e.p }
+            pzh: PRED_ZH[e.p] || e.p },
+    classes: e.p === 'type' ? 'type-edge' : ''
   })));
 }
 
@@ -311,17 +317,23 @@ async function loadGraph(opts) {
 /* ---------- 点击聚焦邻域 ---------- */
 
 function focusNeighborhood(node) {
-  // 只亮目标的一跳邻域（节点 + 与目标直连的边），其余淡化
+  // 只亮目标的一跳邻域（节点 + 与目标直连的边），其余淡化；
+  // 同时点亮该节点的类型边——默认全图不显示「属于」边，聚焦时才看
   state.cy.batch(() => {
+    state.cy.edges().removeClass('show-type');
     state.cy.elements().addClass('dimmed');
     node.removeClass('dimmed');
     node.connectedEdges().removeClass('dimmed');
     node.connectedEdges().connectedNodes().removeClass('dimmed');
+    node.connectedEdges().filter('.type-edge').addClass('show-type');
   });
 }
 
 function clearFocus() {
-  state.cy.elements().removeClass('dimmed');
+  state.cy.batch(() => {
+    state.cy.elements().removeClass('dimmed');
+    state.cy.edges().removeClass('show-type');
+  });
 }
 
 function buildLegend() {
