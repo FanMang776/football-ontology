@@ -211,7 +211,7 @@ def reset():
 
 import json
 import os
-from typing import Any, Iterator
+from typing import Iterator
 
 from fastapi.responses import StreamingResponse
 

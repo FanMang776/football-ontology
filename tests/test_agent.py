@@ -178,3 +178,34 @@ def test_inject_event_rejects_out_of_range(kb):
                  {"etype": "injury", "player_id": "p_yam1", "weeks_out": 99}):
         out = run_tool(kb, "inject_event", args)
         assert out["ok"] is False, args
+
+
+def test_make_client_clear_error_when_config_missing(monkeypatch):
+    """Minor 修复：显式配了真实模型但缺 base_url/key 时，报中文错误而非裸 KeyError。"""
+    import pytest as _pytest
+    monkeypatch.setenv("LLM_MODEL", "glm-4.6")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    from engine.agent import make_client
+    with _pytest.raises(RuntimeError, match="LLM_BASE_URL"):
+        make_client()
+
+
+def test_mock_rest_closing_reflects_result(kb):
+    """Minor 修复：轮休收尾文案取自工具结果，不在建议已消费时谎报已执行。"""
+    run_tool(kb, "execute_action", {"action_id": "action_RestPlayer_p_am1"})
+    evts = list(run_turn(kb, MockClient(), "m",
+                         [{"role": "user", "content": "帮德布劳内轮休"}]))
+    text = "".join(e["text"] for e in evts if e["type"] == "delta")
+    assert "不在当前建议清单" in text, "建议已消费，执行应失败且收尾如实汇报"
+
+
+def test_make_client_clear_error_when_config_missing(monkeypatch):
+    """Minor 修复：显式配了真实模型但缺 base_url/key 时，报中文错误而非裸 KeyError。"""
+    import pytest as _pytest
+    monkeypatch.setenv("LLM_MODEL", "glm-4.6")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    from engine.agent import make_client
+    with _pytest.raises(RuntimeError, match="LLM_BASE_URL"):
+        make_client()

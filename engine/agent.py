@@ -245,10 +245,28 @@ class BaseClient:
         raise NotImplementedError
 
 
+def _closing_text(messages) -> str:
+    """收尾文案取自最近一条工具结果（前端回传的是紧凑摘要，后端路径是
+    JSON），演示模式不谎报执行结果。"""
+    for m in reversed(messages):
+        if m.get("role") != "tool":
+            continue
+        content = str(m.get("content", ""))
+        try:
+            data = _json.loads(content)
+            if isinstance(data, dict) and data.get("message"):
+                return "（演示模式）执行结果：" + str(data["message"])
+        except ValueError:
+            pass
+        return "（演示模式）执行结果：" + content
+    return "（演示模式）无工具结果可汇报"
+
+
 class MockClient(BaseClient):
     """关键词脚本假模型：仅供无 key 演示。测试请注入 FakeClient，别依赖此表。"""
 
-    RULES = [   # (关键词, [(text, [(tool, args)])])，按序取第一个命中的规则
+    RULES = [   # (关键词, [(text, [(tool, args)])])，按序取第一个命中的规则；
+                # text=None 且 calls 空 = 收尾步，文案由 _closing_text 依工具结果生成
         ("建议", [(None, [("list_suggestions", {})]),
                   ("以上是当前建议清单（演示模式），每条的理由见决策中心。", [])]),
         ("名单", [(None, [("list_players", {})]),
@@ -257,7 +275,7 @@ class MockClient(BaseClient):
                 ("以上是名单，injured_weeks 大于 0 即在伤停（演示模式）。", [])]),
         ("轮休", [(None, [("list_suggestions", {})]),
                   (None, [("execute_action", {"action_id": "action_RestPlayer_p_am1"})]),
-                  ("已为德布劳内执行轮休（演示模式）。", [])]),
+                  (None, [])]),
     ]
 
     def stream_chat(self, model, messages, tools):
@@ -273,6 +291,8 @@ class MockClient(BaseClient):
                           if m.get("role") == "assistant" and m.get("tool_calls"))
                 if idx < len(script):
                     text, calls = script[idx]
+                    if text is None and not calls:
+                        text = _closing_text(messages)
                     if text:
                         yield {"type": "text-delta", "text": text}
                     yield {"type": "tool_calls",
@@ -321,10 +341,15 @@ class OpenAIClient(BaseClient):
 def make_client() -> BaseClient:
     """LLM_MODEL 未设或 =mock → MockClient（绝不读 LLM_API_KEY，无 key 可演示，
     api.main 无环境变量也能 import）；设为其他值 → OpenAI 兼容客户端，
-    需 LLM_BASE_URL / LLM_API_KEY 两个环境变量，缺了就让它 KeyError 显式报错。"""
+    需 LLM_BASE_URL / LLM_API_KEY 两个环境变量，缺了给中文报错。"""
     model = _os.environ.get("LLM_MODEL") or "mock"
     if model == "mock":
         return MockClient()
-    base_url = _os.environ["LLM_BASE_URL"]
-    api_key = _os.environ["LLM_API_KEY"]
-    return OpenAIClient(base_url, api_key)
+    missing = [k for k in ("LLM_BASE_URL", "LLM_API_KEY")
+               if not _os.environ.get(k)]
+    if missing:
+        raise RuntimeError(
+            "已设置 LLM_MODEL=" + model + "，但缺少环境变量 "
+            + "、".join(missing)
+            + "。补齐后重启，或将 LLM_MODEL 设为 mock 进入演示模式。")
+    return OpenAIClient(_os.environ["LLM_BASE_URL"], _os.environ["LLM_API_KEY"])

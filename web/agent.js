@@ -76,6 +76,7 @@
       const reader = resp.body.getReader();
       const dec = new TextDecoder();
       let buf = '';
+      let sawDone = false;
       for (;;) {
         const r = await reader.read();
         if (r.done) break;
@@ -84,9 +85,14 @@
         buf = lines.pop();
         for (const line of lines) {
           const t = line.trim();
-          if (t.indexOf('data: ') === 0) handleEvent(JSON.parse(t.slice(6)));
+          if (t.indexOf('data: ') === 0) {
+            const e = JSON.parse(t.slice(6));
+            if (e.type === 'done') sawDone = true;
+            handleEvent(e);
+          }
         }
       }
+      if (!sawDone) addBubble('bot', '对话中断了，请重试。');
       /* 历史回传：assistant 文本 + tool_calls + tool 摘要（OpenAI 消息格式） */
       const botText = cur ? cur.textContent : '';
       if (turnTools.length) {
