@@ -1,5 +1,5 @@
 """动作治理：报名上限前置条件、治疗审批两步流、审计与预览。"""
-from engine.events import InjuryEvent
+from engine.events import InjuryEvent, RecoveryEvent
 from engine.knowledge_base import KnowledgeBase
 from engine.namespaces import EX
 
@@ -106,3 +106,17 @@ def test_rest_player_executes_and_suggestion_disappears():
     assert not any(a["type"] == "RestPlayer"
                    and any(t["id"] == "p_dm1" for t in a["targets"])
                    for a in kb.list_actions())
+
+
+def test_stale_pending_pruned_when_suggestion_disappears():
+    """pending 建议因事实变化消失后，陈旧 pending 记录必须被剪除——
+    否则同一建议日后重现时，第一次执行就直通，绕过了两步审批门。"""
+    kb = fresh()
+    kb.dispatch(InjuryEvent(EX.p_wg2, 4, "拉伤"))            # 萨卡：runtime 伤情
+    aid = find(kb, "StartTreatment", "p_wg2")
+    assert aid, "伤停 4 周（≥3）应有治疗建议"
+    assert kb.execute(aid)["pending"] is True                # 登记待审批
+    kb.dispatch(RecoveryEvent(EX.p_wg2))                     # 痊愈 → 建议消失
+    assert aid not in kb.pending, "建议消失后陈旧 pending 应被剪除"
+    kb.dispatch(InjuryEvent(EX.p_wg2, 4, "拉伤"))            # 再次受伤 → 建议重现
+    assert kb.execute(aid)["pending"] is True, "重现的建议仍须走审批门"
