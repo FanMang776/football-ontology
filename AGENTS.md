@@ -6,14 +6,14 @@ This file provides guidance to AI coding agents when working with code in this r
 
 足球本体世界学习 Demo：用小型知识图谱（RDF/OWL + SPARQL）+ 对象运行时演示"现代本体"如何超越知识图谱——语义推理、状态派生、事件感知、治理动作。**这是教学项目**，代码结构的每一处设计（分层、守卫、全量重算）都服务于可讲解性，改动时优先保持教学清晰度而非生产级优化。
 
-`learn/` 四章教程是本项目的主文档，代码引用均来自本仓库源码；改引擎行为时需同步检查对应章节的表述是否仍然成立。
+`learn/` 五章教程是本项目的主文档，代码引用均来自本仓库源码；改引擎行为时需同步检查对应章节的表述是否仍然成立。
 
 ## 常用命令
 
 ```bash
-pip install -r requirements.txt          # 安装依赖（rdflib/owlrl/fastapi/uvicorn/pytest/httpx）
+pip install -r requirements.txt          # 安装依赖（rdflib/owlrl/fastapi/uvicorn/pytest/httpx/openai）
 
-python -m pytest -q                      # 跑全部 38 个测试
+python -m pytest -q                      # 跑全部 70 个测试
 python -m pytest tests/test_reasoning.py -q            # 跑单个文件
 python -m pytest tests/test_rules.py::test_name -q     # 跑单个测试
 
@@ -51,13 +51,14 @@ fitness 公式唯一实现点在 `engine/objects.py`（docstring 钉死），不
 ### 关键模块
 
 - `engine/loader.py` — `load_declared()`（TBox+ABox）+ `materialize()`（OWL-RL 闭包，`axiomatic_triples=False` 关掉无关公理，否则推断层混入上千条非业务三元组）
-- `engine/events.py` — 四类事件（frozen dataclass，纯数据）
+- `engine/events.py` — 四类事件（frozen dataclass，纯数据）+ `build_event()`（统一构造入口，API 与 Agent 工具共用）
 - `engine/objects.py` — 对象运行时：`perceive/compute/describe`（五官里的"脑"）
 - `engine/world.py` — `World.dispatch`：感知 → 结算（事件写 effects）→ refresh → 全量重算（两段：先球员后俱乐部）→ 传导报告
 - `engine/rules.py` — 动作建议规则（轮休/征调/治疗；情况→建议；veto 三元组存在则不再建议）
 - `engine/rule_meta.py` — 规则手册：全部规则的声明式展示元数据（render 代入当前参数）；改规则时同步更新，契约测试防漂移
 - `engine/actions.py` — 动作治理：前置条件（报名 <16 否决并写 veto）、审批（StartTreatment 两步执行）、审计（kb.audit + tick 计数器）、预览（不落库）
-- `api/main.py` — FastAPI 接口 + 静态前端托管；`kb = KnowledgeBase()` 全局单例；审批中间态返回 200 + pending=true（不是 409）
+- `engine/agent.py` — LLM Agent：六个本体操作工具（TOOLS + `run_tool`）、手写工具调用循环 `run_turn`（上限 6 轮）、OpenAI 兼容客户端（`LLM_BASE_URL/LLM_API_KEY/LLM_MODEL` 三环境变量；`LLM_MODEL` 未设或 =mock 时走 MockClient 演示模式）。**治理门对 Agent 一视同仁**：execute_action 复用 kb.execute；事件是感知输入故意不上治理门（嘴 vs 手）。工具永不抛异常，失败返回 ok=False
+- `api/main.py` — FastAPI 接口 + 静态前端托管；`kb = KnowledgeBase()` 全局单例；审批中间态返回 200 + pending=true（不是 409）；`POST /api/agent/chat` 是 SSE 薄壳（后端无会话状态，历史由前端持有回传）
 
 ### 并发与内存模型
 
@@ -68,8 +69,8 @@ fitness 公式唯一实现点在 `engine/objects.py`（docstring 钉死），不
 
 ### 前端（web/）
 
-五 Tab 原生 JS（无构建步骤）：世界总览（Cytoscape.js，声明边实线/推断边虚线）、事件流、球员对象、决策中心（预览/审批/审计/阈值滑杆）、学习路径。`api/main.py` 的 `/api/graph` 端点决定哪些谓词入图（`shown` 集合），改图谱展示需同步改这里。
+六 Tab 原生 JS（无构建步骤）：世界总览（Cytoscape.js，声明边实线/推断边虚线）、事件流、球员对象、决策中心（预览/审批/审计/阈值滑杆）、学习路径、智能体（`agent.js` 对话 + 工具卡片，SSE）。`api/main.py` 的 `/api/graph` 端点决定哪些谓词入图（`shown` 集合），改图谱展示需同步改这里。
 
 ## 测试
 
-`tests/` 按引擎模块分文件（actions/api/reasoning/rules/world），API 测试经 httpx 直接调 FastAPI app，不起真实端口。改治理语义（前置条件/审批/veto）时 `test_actions.py` 与 `test_api.py` 都要跑。
+`tests/` 按引擎模块分文件（actions/api/agent/reasoning/rules/world），API 测试经 TestClient 直接调 FastAPI app，不起真实端口；agent 测试用注入的脚本化假模型（FakeClient），不联网。改治理语义（前置条件/审批/veto）时 `test_actions.py` 与 `test_api.py` 都要跑。
