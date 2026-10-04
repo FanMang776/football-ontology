@@ -233,10 +233,12 @@ class ChatBody(BaseModel):
 
 @app.get("/api/agent/status")
 def agent_status():
-    """前端提示条用：当前是演示模式（mock）还是真实模型。"""
+    """前端提示条用：当前是演示模式（mock）还是真实模型（模型名随客户端）。"""
     mock = isinstance(AGENT_CLIENT, agent.MockClient)
     return {"mock": mock,
-            "model": "mock" if mock else os.environ.get("LLM_MODEL", "")}
+            "model": "mock" if mock
+            else (getattr(AGENT_CLIENT, "model", None)
+                  or os.environ.get("LLM_MODEL", ""))}
 
 
 @app.post("/api/agent/chat")
@@ -248,7 +250,7 @@ def agent_chat(body: ChatBody):
     messages = [m.model_dump() for m in body.messages]
 
     def gen() -> Iterator[str]:
-        model = os.environ.get("LLM_MODEL") or "mock"
+        model = getattr(AGENT_CLIENT, "model", None) or "mock"
         for e in agent.run_turn(kb, AGENT_CLIENT, model, messages):
             yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
 

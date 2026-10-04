@@ -200,12 +200,38 @@ def test_mock_rest_closing_reflects_result(kb):
     assert "不在当前建议清单" in text, "建议已消费，执行应失败且收尾如实汇报"
 
 
-def test_make_client_clear_error_when_config_missing(monkeypatch):
-    """Minor 修复：显式配了真实模型但缺 base_url/key 时，报中文错误而非裸 KeyError。"""
-    import pytest as _pytest
-    monkeypatch.setenv("LLM_MODEL", "glm-4.6")
-    monkeypatch.delenv("LLM_API_KEY", raising=False)
-    monkeypatch.delenv("LLM_BASE_URL", raising=False)
-    from engine.agent import make_client
-    with _pytest.raises(RuntimeError, match="LLM_BASE_URL"):
-        make_client()
+# ---------- 配置文件：环境变量 > config.ini > 默认 mock ----------
+
+def _write_cfg(tmp_path, body):
+    p = tmp_path / "config.ini"
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+def test_make_client_reads_config_file(tmp_path, monkeypatch):
+    for k in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    from engine.agent import OpenAIClient, make_client
+    p = _write_cfg(tmp_path,
+                   "[llm]\nbase_url = https://open.bigmodel.cn/api/paas/v4\n"
+                   "api_key = k77\nmodel = glm-5.3-flash\n")
+    c = make_client(p)
+    assert isinstance(c, OpenAIClient)
+    assert c.api_key == "k77"
+    assert c.model == "glm-5.3-flash"
+    assert "bigmodel.cn" in c.base_url
+
+
+def test_env_overrides_config_file(tmp_path, monkeypatch):
+    from engine.agent import MockClient, make_client
+    p = _write_cfg(tmp_path,
+                   "[llm]\nbase_url = https://x/v4\napi_key = k\nmodel = glm-5.3-flash\n")
+    monkeypatch.setenv("LLM_MODEL", "mock")
+    assert isinstance(make_client(p), MockClient)
+
+
+def test_missing_config_file_is_silent(tmp_path, monkeypatch):
+    for k in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    from engine.agent import MockClient, make_client
+    assert isinstance(make_client(tmp_path / "nope.ini"), MockClient)

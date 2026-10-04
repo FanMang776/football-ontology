@@ -240,6 +240,14 @@ def run_turn(kb, client, model: str, messages: list):
 
 # ---------- LLM 客户端：OpenAI 兼容协议（GLM 等国产模型通用） ----------
 
+import configparser as _configparser
+from pathlib import Path as _Path
+
+# 仓库根目录的 config.ini（模板见 config.example.ini，真文件进 .gitignore）。
+# 优先级：环境变量 > config.ini > 默认 mock。
+_CONFIG_PATH = _Path(__file__).resolve().parent.parent / "config.ini"
+
+
 class BaseClient:
     def stream_chat(self, model, messages, tools):
         raise NotImplementedError
@@ -306,8 +314,11 @@ class MockClient(BaseClient):
 class OpenAIClient(BaseClient):
     """OpenAI 兼容流式客户端：文本增量直通，tool_calls 增量按 index 聚合。"""
 
-    def __init__(self, base_url, api_key):
+    def __init__(self, base_url, api_key, model=None):
         from openai import OpenAI
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
         self._client = OpenAI(base_url=base_url, api_key=api_key)
 
     def stream_chat(self, model, messages, tools):
@@ -338,18 +349,37 @@ class OpenAIClient(BaseClient):
         yield {"type": "tool_calls", "calls": out}
 
 
-def make_client() -> BaseClient:
-    """LLM_MODEL 未设或 =mock → MockClient（绝不读 LLM_API_KEY，无 key 可演示，
-    api.main 无环境变量也能 import）；设为其他值 → OpenAI 兼容客户端，
-    需 LLM_BASE_URL / LLM_API_KEY 两个环境变量，缺了给中文报错。"""
-    model = _os.environ.get("LLM_MODEL") or "mock"
+def _pick(env_key: str, file_cfg: dict, file_key: str):
+    """单项配置解析：环境变量 > config.ini > None。"""
+    return _os.environ.get(env_key) or file_cfg.get(file_key) or None
+
+
+def make_client(config_path=None) -> BaseClient:
+    """配置来源（逐项解析，优先级：环境变量 > config.ini > 默认）：
+
+    - LLM_MODEL 未设且文件未配 → mock（绝不读 LLM_API_KEY，无 key 可演示，
+      api.main 无任何配置也能 import）
+    - model 配为非 mock 值 → OpenAI 兼容客户端，需 base_url/api_key，
+      缺了给中文报错（config.ini 的 [llm] 节或 LLM_BASE_URL/LLM_API_KEY）
+    """
+    path = _Path(config_path) if config_path else _CONFIG_PATH
+    file_cfg = {}
+    if path.exists():
+        cp = _configparser.ConfigParser()
+        cp.read(path, encoding="utf-8")
+        if cp.has_section("llm"):
+            file_cfg = dict(cp["llm"])
+
+    model = _pick("LLM_MODEL", file_cfg, "model") or "mock"
     if model == "mock":
         return MockClient()
-    missing = [k for k in ("LLM_BASE_URL", "LLM_API_KEY")
-               if not _os.environ.get(k)]
+    base_url = _pick("LLM_BASE_URL", file_cfg, "base_url")
+    api_key = _pick("LLM_API_KEY", file_cfg, "api_key")
+    missing = [k for k, v in (("LLM_BASE_URL", base_url),
+                              ("LLM_API_KEY", api_key)) if not v]
     if missing:
         raise RuntimeError(
-            "已设置 LLM_MODEL=" + model + "，但缺少环境变量 "
-            + "、".join(missing)
-            + "。补齐后重启，或将 LLM_MODEL 设为 mock 进入演示模式。")
-    return OpenAIClient(_os.environ["LLM_BASE_URL"], _os.environ["LLM_API_KEY"])
+            "model 配置为 " + model + "，但缺少 " + "、".join(missing)
+            + "（可设在环境变量或 config.ini 的 [llm] 节）。"
+              "补齐后重启，或将 model 留空/mock 进入演示模式。")
+    return OpenAIClient(base_url, api_key, model=model)

@@ -57,7 +57,7 @@ fitness 公式唯一实现点在 `engine/objects.py`（docstring 钉死），不
 - `engine/rules.py` — 动作建议规则（轮休/征调/治疗；情况→建议；veto 三元组存在则不再建议）
 - `engine/rule_meta.py` — 规则手册：全部规则的声明式展示元数据（render 代入当前参数）；改规则时同步更新，契约测试防漂移
 - `engine/actions.py` — 动作治理：前置条件（报名 <16 否决并写 veto）、审批（StartTreatment 两步执行）、审计（kb.audit + tick 计数器）、预览（不落库）
-- `engine/agent.py` — LLM Agent：六个本体操作工具（TOOLS + `run_tool`）、手写工具调用循环 `run_turn`（上限 6 轮）、OpenAI 兼容客户端（`LLM_BASE_URL/LLM_API_KEY/LLM_MODEL` 三环境变量；`LLM_MODEL` 未设或 =mock 时走 MockClient 演示模式）。**治理门对 Agent 一视同仁**：execute_action 复用 kb.execute；事件是感知输入故意不上治理门（嘴 vs 手）。工具永不抛异常，失败返回 ok=False
+- `engine/agent.py` — LLM Agent：六个本体操作工具（TOOLS + `run_tool`）、手写工具调用循环 `run_turn`（上限 6 轮）、OpenAI 兼容客户端。模型配置优先级：**环境变量（`LLM_BASE_URL/LLM_API_KEY/LLM_MODEL`）> 仓库根 `config.ini` 的 `[llm]` 节（模板 `config.example.ini`，真文件已 gitignore）> 默认 mock 演示模式**。**治理门对 Agent 一视同仁**：execute_action 复用 kb.execute；事件是感知输入故意不上治理门（嘴 vs 手）。工具永不抛异常，失败返回 ok=False
 - `api/main.py` — FastAPI 接口 + 静态前端托管；`kb = KnowledgeBase()` 全局单例；审批中间态返回 200 + pending=true（不是 409）；`POST /api/agent/chat` 是 SSE 薄壳（后端无会话状态，历史由前端持有回传）
 
 ### 并发与内存模型
