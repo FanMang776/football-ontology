@@ -228,6 +228,13 @@ function applyGraphFilter() {
   runLayout(false);
 }
 
+function syncEdgeLabels() {
+  // 边标签显隐只跟当前 zoom 走：布局 settle / 预设切换 / 初始加载都必须对齐，
+  // 不能只靠 zoom 事件回调（settle 的 fit+cap 不触发 zoom 事件）
+  if (!state.cy) return;
+  state.cy.elements().toggleClass('hide-label', state.cy.zoom() < 0.6);
+}
+
 function runLayout(animate) {
   const opts = typeof cytoscapeFcose !== 'undefined'
     ? { // fcose：力导布局里间距质量最好
@@ -253,6 +260,7 @@ function runLayout(animate) {
   const settle = () => {
     state.cy.fit(undefined, 60);
     if (state.cy.zoom() > 0.75) { state.cy.zoom(0.75); state.cy.center(); }
+    syncEdgeLabels();
   };
   layout.one('layoutstop', settle);
   layout.run();
@@ -508,11 +516,6 @@ async function executeOne(id, btn) {
     const r = await post('/api/action/' + encodeURIComponent(id) + '/execute');
     toast(r.message || (r.pending ? '已登记待审批' : '已执行'), r.ok === false);
     await Promise.all([loadActions(), loadAudit(), loadGraph()]);
-    if (r.pending) {
-      // 重渲染后再标记：innerHTML 已重建，必须在最新 DOM 上改按钮
-      const b = document.querySelector('.action-execute[data-id="' + id + '"]');
-      if (b) b.textContent = '确认执行';
-    }
   } catch (e) { toast(e.message, true); }
 }
 
@@ -570,6 +573,10 @@ async function resetDemo() {
     state.lastReport = null;
     await Promise.all([loadGraph(), loadActions(), loadAudit(), loadRules()]);
     toast('演示已重置：事件、动作与审计均已清除');
+    if (tour.active) {          // 剧中重置：世界归零，剧情从头再走
+      tour.done.clear();
+      await showStep(0, false);
+    }
   } catch (e) { toast(e.message, true); }
 }
 
@@ -640,7 +647,9 @@ const TOUR = [
     action: async () => {
       await refreshDecisionPanel();
       const data = await api('/api/actions');
-      const act = data.actions.find(a => a.type === 'StartTreatment');
+      const act = data.actions.find(a => a.type === 'StartTreatment' &&
+          (a.targets || []).some(t => t.id === 'p_yam1')) ||
+        data.actions.find(a => a.type === 'StartTreatment');
       if (act) await executeOne(act.id, null);
     } },
   { tab: 'decisions',
@@ -786,9 +795,7 @@ async function init() {
     minZoom: 0.2, maxZoom: 2.5
   });
   window.__cy = state.cy;   // 调试句柄（也可用于浏览器端测试）
-  state.cy.on('zoom', () => {
-    state.cy.elements().toggleClass('hide-label', state.cy.zoom() < 0.6);
-  });
+  state.cy.on('zoom', () => syncEdgeLabels());
   state.cy.on('tap', 'node', evt => {
     focusNeighborhood(evt.target);
     openDrawer(evt.target.id());

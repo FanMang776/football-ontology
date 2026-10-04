@@ -73,6 +73,9 @@ class KnowledgeBase:
         self.material = materialize(merged)
         self.actions, self.action_reasons = apply_player_rules(
             self.material, floor=self.params["fitness_floor"])
+        # 建议消失（痊愈、条件变化）时剪除陈旧 pending：否则同一建议日后
+        # 重现会带着旧记录直通审批门——pending 只对仍在清单中的建议有效
+        self.pending &= {_id(a) for a in self.action_reasons}
 
     def next_step(self) -> int:
         """确定性步进计数器：审计与演示用，不引入 wall-clock。"""
