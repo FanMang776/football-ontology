@@ -48,8 +48,9 @@ const EDGE_DECLARED = '#cbd5e1';
 const EDGE_INFERRED = '#7dd3fc';
 const WAVE_MS = 400;
 
-/* 核心视图默认类别：比赛/伤病/合同/训练课是事件流里才需要的实体，默认移出 */
-const CORE_CATS = ['Player', 'Club', 'Class'];
+/* 核心视图默认类别：只看实例与业务关系。类（TBox）节点随类型边一起默认移出——
+   它们的边（rdf:type）默认隐藏后，类节点只会是没有连线的孤岛；完整视图可勾回 */
+const CORE_CATS = ['Player', 'Club'];
 
 const PRED_ZH = { playsFor: '效力', squadOf: '所属梯队', hasContract: '有合同',
   injuredWith: '伤病', participatesIn: '出场', trainsIn: '参训', type: '是（类型）' };
