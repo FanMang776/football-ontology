@@ -13,7 +13,7 @@ This file provides guidance to AI coding agents when working with code in this r
 ```bash
 pip install -r requirements.txt          # 安装依赖（rdflib/owlrl/fastapi/uvicorn/pytest/httpx/openai）
 
-python -m pytest -q                      # 跑全部 70 个测试
+python -m pytest -q                      # 跑全部 73 个测试
 python -m pytest tests/test_reasoning.py -q            # 跑单个文件
 python -m pytest tests/test_rules.py::test_name -q     # 跑单个测试
 
