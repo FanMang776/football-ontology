@@ -214,12 +214,19 @@ def run_turn(kb, client, model: str, messages: list):
     for rnd in range(1, MAX_ROUNDS + 1):
         text_parts = []
         calls = None
-        for chunk in client.stream_chat(model, messages, TOOLS):
-            if chunk["type"] == "text-delta":
-                text_parts.append(chunk["text"])
-                yield {"type": "delta", "text": chunk["text"]}
-            elif chunk["type"] == "tool_calls":
-                calls = chunk["calls"]
+        try:
+            for chunk in client.stream_chat(model, messages, TOOLS):
+                if chunk["type"] == "text-delta":
+                    text_parts.append(chunk["text"])
+                    yield {"type": "delta", "text": chunk["text"]}
+                elif chunk["type"] == "tool_calls":
+                    calls = chunk["calls"]
+        except Exception as e:      # noqa: BLE001——模型侧失败（401/断流/超时）
+            # 对前端可见，而不是炸 SSE 让用户只看到「对话中断」
+            yield {"type": "delta",
+                   "text": f"模型调用失败：{e}"}
+            yield {"type": "done", "rounds_used": rnd}
+            return
         if not calls:
             messages.append({"role": "assistant",
                              "content": "".join(text_parts)})

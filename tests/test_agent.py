@@ -180,15 +180,16 @@ def test_inject_event_rejects_out_of_range(kb):
         assert out["ok"] is False, args
 
 
-def test_make_client_clear_error_when_config_missing(monkeypatch):
-    """Minor 修复：显式配了真实模型但缺 base_url/key 时，报中文错误而非裸 KeyError。"""
+def test_make_client_clear_error_when_config_missing(monkeypatch, tmp_path):
+    """显式配了真实模型但缺 base_url/key 时，报中文错误而非裸 KeyError。
+    传入不存在的配置文件路径——开发者机器上可能有真实 config.ini。"""
     import pytest as _pytest
     monkeypatch.setenv("LLM_MODEL", "glm-4.6")
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
     from engine.agent import make_client
     with _pytest.raises(RuntimeError, match="LLM_BASE_URL"):
-        make_client()
+        make_client(tmp_path / "none.ini")
 
 
 def test_mock_rest_closing_reflects_result(kb):
@@ -235,3 +236,16 @@ def test_missing_config_file_is_silent(tmp_path, monkeypatch):
         monkeypatch.delenv(k, raising=False)
     from engine.agent import MockClient, make_client
     assert isinstance(make_client(tmp_path / "nope.ini"), MockClient)
+
+
+def test_run_turn_llm_error_becomes_delta_not_crash(kb):
+    """模型侧异常（如 401）转成可见的 delta 事件 + done 收尾，不炸 SSE。"""
+    class BoomClient:
+        def stream_chat(self, model, messages, tools):
+            raise RuntimeError("Error code: 401 - 令牌已过期或验证不正确")
+
+    evts = list(run_turn(kb, BoomClient(), "m",
+                         [{"role": "user", "content": "hi"}]))
+    assert evts[-1]["type"] == "done"
+    text = "".join(e.get("text", "") for e in evts if e["type"] == "delta")
+    assert "401" in text and "模型调用失败" in text
