@@ -34,3 +34,33 @@ class InjuryEvent:
 class RecoveryEvent:
     """痊愈：移除该球员的运行时伤病记录（声明层伤病不受影响）。"""
     player: URIRef
+
+
+def build_event(kb, etype: str, player_id: str, *, minutes=None, load=None,
+                weeks_out=None, kind=None):
+    """统一的事件构造入口（API 端点与 Agent 工具共用）。
+
+    kb 只用于球员存在性校验。校验失败（未知类型/未知球员/缺参数）
+    raise ValueError——调用方各自决定报错形态：HTTP 层转 400，
+    Agent 工具层转 {"ok": False}。
+    """
+    from engine.namespaces import EX
+
+    player = EX[player_id]
+    if (player, None, None) not in kb.material:
+        raise ValueError(f"未知球员: {player_id}")
+    if etype == "match":
+        if minutes is None:
+            raise ValueError("match 事件需要 minutes")
+        return MatchPlayedEvent(player, minutes)
+    if etype == "training":
+        if load is None:
+            raise ValueError("training 事件需要 load")
+        return TrainingLoadEvent(player, load)
+    if etype == "injury":
+        if weeks_out is None:
+            raise ValueError("injury 事件需要 weeks_out")
+        return InjuryEvent(player, weeks_out, kind or "伤病")
+    if etype == "recovery":
+        return RecoveryEvent(player)
+    raise ValueError(f"未知事件类型: {etype}（可选 match/training/injury/recovery）")

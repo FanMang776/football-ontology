@@ -60,24 +60,12 @@ class ParamsBody(BaseModel):
 
 
 def _build_event(body: EventBody):
-    player = EX[body.player_id]
-    if (player, None, None) not in kb.material:
-        raise HTTPException(400, f"未知球员: {body.player_id}")
-    if body.type == "match":
-        if body.minutes is None:
-            raise HTTPException(400, "match 事件需要 minutes")
-        return ev.MatchPlayedEvent(player, body.minutes)
-    if body.type == "training":
-        if body.load is None:
-            raise HTTPException(400, "training 事件需要 load")
-        return ev.TrainingLoadEvent(player, body.load)
-    if body.type == "injury":
-        if body.weeks_out is None:
-            raise HTTPException(400, "injury 事件需要 weeks_out")
-        return ev.InjuryEvent(player, body.weeks_out, body.kind or "伤病")
-    if body.type == "recovery":
-        return ev.RecoveryEvent(player)
-    raise HTTPException(400, f"未知事件类型: {body.type}（可选 match/training/injury/recovery）")
+    try:
+        return ev.build_event(kb, body.type, body.player_id,
+                              minutes=body.minutes, load=body.load,
+                              weeks_out=body.weeks_out, kind=body.kind)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.post("/api/events")
