@@ -23,6 +23,7 @@
     <button class="tab" data-tab="player"><i class="tab-dot" style="--c:#22a06b"></i>球员对象</button>
     <button class="tab" data-tab="decisions"><i class="tab-dot" style="--c:#d9a514"></i>决策中心</button>
     <button class="tab" data-tab="learn"><i class="tab-dot" style="--c:#3b82c4"></i>学习路径</button>
+    <button class="tab" data-tab="agent"><i class="tab-dot" style="--c:#9d5bd2"></i>智能体</button>
     <button class="btn ghost tour-entry" id="btn-tour">▶ 剧情模式</button>
   </nav>
 </header>
@@ -154,7 +155,25 @@
       </div>
       <p class="kicker">规则手册 · 全部规则与触发条件</p>
       <div id="rule-handbook"></div>
-      <p class="hint muted">每个 Tab 都是教程一章的可视化对应物：事件流=嘴和鼻，球员对象=脑，决策中心=手和治理。</p>
+      <p class="hint muted">每个 Tab 都是教程一章的可视化对应物：事件流=嘴和鼻，球员对象=脑，决策中心=手和治理；智能体=会说话的入口，与人类同走治理门。</p>
+    </section>
+
+    <!-- ═══ 智能体 ═══ -->
+    <section class="panel" id="panel-agent">
+      <p class="kicker">会说话的入口 · LLM Agent</p>
+      <h2>和本体世界对话</h2>
+      <p class="intro">智能体与你走<b>同一扇治理门</b>：它能查世界、提建议、推演动作，执行必须过前置条件与两步审批——
+      <b>事件</b>是感知输入不上治理门，<b>动作</b>才是治理对象。</p>
+      <div class="agent-notice" id="agent-notice" hidden>
+        当前为<b>演示模式</b>（未配置真实模型）。配置 <code>LLM_BASE_URL / LLM_API_KEY / LLM_MODEL</code> 后重启即接入真实模型；
+        试试问「有什么建议」「球队名单」「帮德布劳内轮休」。
+        <button class="btn ghost" id="agent-notice-dismiss">知道了</button>
+      </div>
+      <div class="agent-messages" id="agent-messages"></div>
+      <form class="agent-input" id="agent-form">
+        <input type="text" id="agent-text" placeholder="问问这个世界…" autocomplete="off">
+        <button class="btn primary" id="agent-send" type="submit">发送</button>
+      </form>
     </section>
 
   </aside>
@@ -190,5 +209,6 @@
 <div class="toasts" id="toasts"></div>
 
 <script src="/app.js"></script>
+<script src="/agent.js"></script>
 </body>
 </html>

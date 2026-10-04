@@ -60,24 +60,12 @@ class ParamsBody(BaseModel):
 
 
 def _build_event(body: EventBody):
-    player = EX[body.player_id]
-    if (player, None, None) not in kb.material:
-        raise HTTPException(400, f"未知球员: {body.player_id}")
-    if body.type == "match":
-        if body.minutes is None:
-            raise HTTPException(400, "match 事件需要 minutes")
-        return ev.MatchPlayedEvent(player, body.minutes)
-    if body.type == "training":
-        if body.load is None:
-            raise HTTPException(400, "training 事件需要 load")
-        return ev.TrainingLoadEvent(player, body.load)
-    if body.type == "injury":
-        if body.weeks_out is None:
-            raise HTTPException(400, "injury 事件需要 weeks_out")
-        return ev.InjuryEvent(player, body.weeks_out, body.kind or "伤病")
-    if body.type == "recovery":
-        return ev.RecoveryEvent(player)
-    raise HTTPException(400, f"未知事件类型: {body.type}（可选 match/training/injury/recovery）")
+    try:
+        return ev.build_event(kb, body.type, body.player_id,
+                              minutes=body.minutes, load=body.load,
+                              weeks_out=body.weeks_out, kind=body.kind)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.post("/api/events")
@@ -217,6 +205,54 @@ def set_params(body: ParamsBody):
 def reset():
     kb.reset()
     return {"ok": True}
+
+
+# ---------- Agent 对话（SSE）：薄壳，循环在 engine/agent.run_turn ----------
+
+import json
+import os
+from typing import Iterator
+
+from fastapi.responses import StreamingResponse
+
+import engine.agent as agent
+from engine.agent import make_client
+
+AGENT_CLIENT = make_client()
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    model_config = {"extra": "allow"}      # tool 消息的附加键放行
+
+
+class ChatBody(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1)
+
+
+@app.get("/api/agent/status")
+def agent_status():
+    """前端提示条用：当前是演示模式（mock）还是真实模型。"""
+    mock = isinstance(AGENT_CLIENT, agent.MockClient)
+    return {"mock": mock,
+            "model": "mock" if mock else os.environ.get("LLM_MODEL", "")}
+
+
+@app.post("/api/agent/chat")
+def agent_chat(body: ChatBody):
+    """流式对话端点。后端无会话状态：历史由前端持有、全量上送。
+
+    本端点不持 kb._lock——LLM 流式调用在锁外，工具执行经 kb 方法自行加锁。
+    """
+    messages = [m.model_dump() for m in body.messages]
+
+    def gen() -> Iterator[str]:
+        model = os.environ.get("LLM_MODEL") or "mock"
+        for e in agent.run_turn(kb, AGENT_CLIENT, model, messages):
+            yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 class NoCacheStaticFiles(StaticFiles):
