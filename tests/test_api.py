@@ -164,3 +164,45 @@ def test_execute_all_ok(client):
     r = client.post("/api/actions/execute-all")
     assert r.status_code == 200
     assert "executed" in r.json()
+
+
+# ---------- Agent 对话（SSE） ----------
+
+import json
+
+
+class LocalFakeClient:
+    """与 tests/test_agent.py 的 FakeClient 同构，本地复制避免跨文件 import。"""
+
+    def __init__(self, script):
+        self.script = list(script)
+
+    def stream_chat(self, model, messages, tools):
+        item = self.script.pop(0) if self.script else ("回答", [])
+        text, calls = item
+        if text:
+            yield {"type": "text-delta", "text": text}
+        yield {"type": "tool_calls",
+               "calls": [{"id": f"c{i}", "name": n, "arguments": a}
+                         for i, (n, a) in enumerate(calls or [])]}
+
+
+def test_agent_chat_sse(client, monkeypatch):
+    import api.main as m
+    monkeypatch.setattr(m, "AGENT_CLIENT", LocalFakeClient([("你好，世界", [])]))
+    kb.reset()
+    r = client.post("/api/agent/chat",
+                    json={"messages": [{"role": "user", "content": "在吗"}]})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+    events = [json.loads(line[len("data: "):])
+              for line in r.text.splitlines() if line.startswith("data: ")]
+    assert [e["type"] for e in events] == ["delta", "done"]
+    assert events[-1]["rounds_used"] == 1
+
+
+def test_agent_chat_rejects_bad_history(client):
+    r = client.post("/api/agent/chat", json={"messages": [{"role": "user"}]})
+    assert r.status_code == 422
+    r = client.post("/api/agent/chat", json={"messages": "hi"})
+    assert r.status_code == 422

@@ -309,9 +309,11 @@ class OpenAIClient(BaseClient):
 
 
 def make_client() -> BaseClient:
-    """LLM_MODEL=mock → MockClient（绝不读 LLM_API_KEY，无 key 可演示）；
-    否则 OpenAI 兼容客户端，三个环境变量：LLM_BASE_URL / LLM_API_KEY / LLM_MODEL。"""
-    if _os.environ.get("LLM_MODEL") == "mock":
+    """LLM_MODEL 未设或 =mock → MockClient（绝不读 LLM_API_KEY，无 key 可演示，
+    api.main 无环境变量也能 import）；设为其他值 → OpenAI 兼容客户端，
+    需 LLM_BASE_URL / LLM_API_KEY 两个环境变量，缺了就让它 KeyError 显式报错。"""
+    model = _os.environ.get("LLM_MODEL") or "mock"
+    if model == "mock":
         return MockClient()
     base_url = _os.environ["LLM_BASE_URL"]
     api_key = _os.environ["LLM_API_KEY"]

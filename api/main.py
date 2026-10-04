@@ -207,6 +207,46 @@ def reset():
     return {"ok": True}
 
 
+# ---------- Agent 对话（SSE）：薄壳，循环在 engine/agent.run_turn ----------
+
+import json
+import os
+from typing import Any, Iterator
+
+from fastapi.responses import StreamingResponse
+
+import engine.agent as agent
+from engine.agent import make_client
+
+AGENT_CLIENT = make_client()
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    model_config = {"extra": "allow"}      # tool 消息的附加键放行
+
+
+class ChatBody(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1)
+
+
+@app.post("/api/agent/chat")
+def agent_chat(body: ChatBody):
+    """流式对话端点。后端无会话状态：历史由前端持有、全量上送。
+
+    本端点不持 kb._lock——LLM 流式调用在锁外，工具执行经 kb 方法自行加锁。
+    """
+    messages = [m.model_dump() for m in body.messages]
+
+    def gen() -> Iterator[str]:
+        model = os.environ.get("LLM_MODEL") or "mock"
+        for e in agent.run_turn(kb, AGENT_CLIENT, model, messages):
+            yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
 class NoCacheStaticFiles(StaticFiles):
     """静态资源加 Cache-Control: no-cache——可缓存但每次必须协商校验
     （ETag 未变仍 304），前端改版即时生效，不吃浏览器启发式缓存。"""
