@@ -66,7 +66,7 @@ def test_system_prompt_pins_discipline():
 
 # ---------- Task 2：run_turn 工具循环与客户端 ----------
 
-from engine.agent import MAX_ROUNDS, run_turn
+from engine.agent import MAX_ROUNDS, MockClient, run_turn
 
 
 class FakeClient:
@@ -133,3 +133,48 @@ def test_make_client_mock_needs_no_key(monkeypatch):
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
     from engine.agent import MockClient, make_client
     assert isinstance(make_client(), MockClient)
+
+
+def test_mock_second_turn_same_keyword_still_calls_tools(kb):
+    """回归（审查 #1）：前端历史保留 assistant tool_calls 消息，
+    MockClient 的脚本步进必须只数最后一条 user 之后的消息，
+    否则第二轮起工具卡片永久消失。"""
+    client = MockClient()
+    msgs = [{"role": "user", "content": "有什么建议"}]
+    first = list(run_turn(kb, client, "m", msgs))
+    assert any(e["type"] == "tool_call" for e in first)
+
+    msgs += [{"role": "assistant", "content": "以上是建议",
+              "tool_calls": [{"id": "h0", "type": "function",
+                              "function": {"name": "list_suggestions",
+                                           "arguments": "{}"}}]},
+             {"role": "tool", "tool_call_id": "h0", "content": "共 4 条建议"},
+             {"role": "user", "content": "球队名单"}]
+    second = list(run_turn(kb, client, "m", msgs))
+    assert any(e["type"] == "tool_call" for e in second), \
+        "换了关键词也应重新走脚本，而不是直接落到收尾文案"
+
+
+def test_run_tool_holds_kb_lock(kb, monkeypatch):
+    """回归（审查 #2）：工具执行整体经 kb._lock 串行化（RLock 可重入，
+    内部再进 kb 方法不会死锁）。"""
+    from engine import agent as ag
+    seen = []
+
+    def probe(_kb, _args):
+        seen.append(kb._lock._is_owned())
+        return {"ok": True}
+
+    monkeypatch.setitem(ag._TOOLS_IMPL, "list_players", probe)
+    ag.run_tool(kb, "list_players", {})
+    assert seen == [True]
+
+
+def test_inject_event_rejects_out_of_range(kb):
+    """回归（审查 #4）：数值边界在 build_event 单点校验，
+    Agent 工具与 REST 端点同一契约。"""
+    for args in ({"etype": "match", "player_id": "p_yam1", "minutes": 300},
+                 {"etype": "training", "player_id": "p_yam1", "load": 0},
+                 {"etype": "injury", "player_id": "p_yam1", "weeks_out": 99}):
+        out = run_tool(kb, "inject_event", args)
+        assert out["ok"] is False, args

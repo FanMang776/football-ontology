@@ -583,6 +583,7 @@ async function resetDemo() {
     closeDrawer();
     resetEventPanel();
     state.lastReport = null;
+    window.dispatchEvent(new Event('world-reset'));   // 智能体 Tab 清空对话史
     await Promise.all([loadGraph(), loadActions(), loadAudit(), loadRules()]);
     toast('演示已重置：事件、动作与审计均已清除');
     if (tour.active) {          // 剧中重置：世界归零，剧情从头再走

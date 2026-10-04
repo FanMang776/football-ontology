@@ -120,6 +120,15 @@
     send(text);
   });
 
+  /* 世界重置 → 清空对话史与消息列表（spec：reset 后前端历史清空，
+     否则陈旧对话会被当作仍真的事实回放给模型） */
+  window.addEventListener('world-reset', () => {
+    history = [];
+    messagesEl.innerHTML = '';
+    cur = null;
+    turnTools = [];
+  });
+
   /* 演示模式提示条：由后端 status 端点告知 mock/真实 */
   fetch('/api/agent/status').then((r) => r.json()).then((s) => {
     if (notice && s.mock) notice.hidden = false;

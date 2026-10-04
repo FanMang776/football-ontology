@@ -139,12 +139,18 @@ _TOOLS_IMPL = {
 
 
 def run_tool(kb, name: str, args: dict) -> dict:
-    """按名分发工具调用。工具永不抛异常：失败返回 {"ok": False, "message"}。"""
+    """按名分发工具调用。工具永不抛异常：失败返回 {"ok": False, "message"}。
+
+    工具执行整体经 kb._lock 串行化（RLock 可重入，内部再进 kb 公有方法
+    不会死锁）——只读工具也在锁内，否则并发 dispatch/execute 中途换图
+    会读到混合代际的快照。LLM 流式调用在锁外。
+    """
     impl = _TOOLS_IMPL.get(name)
     if impl is None:
         return {"ok": False, "message": f"未知工具: {name}"}
     try:
-        return impl(kb, args or {})
+        with kb._lock:
+            return impl(kb, args or {})
     except Exception as e:      # noqa: BLE001——工具边界，一切失败都转成 ok=False
         return {"ok": False, "message": f"{type(e).__name__}: {e}"}
 
@@ -259,7 +265,11 @@ class MockClient(BaseClient):
                      if m.get("role") == "user" and m.get("content")), "")
         for keyword, script in self.RULES:
             if keyword in last:
-                idx = sum(1 for m in messages
+                # 脚本步进只数本轮（最后一条 user 之后）的工具调用——
+                # 前端历史会保留此前各轮的 assistant tool_calls 消息
+                last_user = max(i for i, m in enumerate(messages)
+                                if m.get("role") == "user")
+                idx = sum(1 for m in messages[last_user + 1:]
                           if m.get("role") == "assistant" and m.get("tool_calls"))
                 if idx < len(script):
                     text, calls = script[idx]
