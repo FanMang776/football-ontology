@@ -83,7 +83,7 @@ def step4():
     print("\n== 注入事件：德布劳内也伤了（4 周）==")
     r = kb.dispatch(InjuryEvent(EX.p_am1, 4, "腿筋拉伤"))
     for i, step in enumerate(r["chain"], 1):
-        print(f"  传导 {i}: {step}")
+        print(f"  传导 {i} [{step['stage']}] {step['text']}")
     print(f"  状态变化：{r['state_changes']}")
     print(f"  建议清单刷新为 {len(r['suggestions'])} 条：")
     for a in r["suggestions"]:

@@ -42,16 +42,20 @@ const AUDIT_RESULT_ZH = {
 
 const RULE_CATEGORY_ZH = { suggestion: '状态建议规则', governance: '治理边界' };
 
+const STAGE_ZH = { perceive: '感知', settle: '结算', compute: '派生', rules: '规则' };
+
 const EDGE_DECLARED = '#cbd5e1';
 const EDGE_INFERRED = '#7dd3fc';
 const WAVE_MS = 400;
 
-/* 语义推荐子图：与选中商品直接相连、值得展示的谓词（推荐可解释边 + 套装组成） */
-const FOCUS_PREDS = ['suppliedBy', 'isComponentOf', 'promotes', 'substituteFor',
-  'compatibleWith', 'sameSeries', 'hasPart'];
+/* 核心视图默认类别：比赛/伤病/合同/训练课是事件流里才需要的实体，默认移出 */
+const CORE_CATS = ['Player', 'Club', 'Class'];
+
+const PRED_ZH = { playsFor: '效力', squadOf: '所属梯队', hasContract: '有合同',
+  injuredWith: '伤病', participatesIn: '出场', trainsIn: '参训', type: '是（类型）' };
 
 const state = { graph: null, cy: null, currentTab: 'overview', waveTimer: null,
-  filtered: false, graphFilters: null };
+  graphFilters: null, lastReport: null };
 
 /* ---------- 基础设施 ---------- */
 
@@ -113,16 +117,21 @@ function cyStylesheet() {
       'border-width': 1, 'border-color': 'rgba(31,41,55,0.18)'
     } },
     { selector: 'node[cls = "Class"]', style: {
-      shape: 'round-rectangle', width: 62, height: 46,
-      'border-color': '#cfcabb'
+      shape: 'round-rectangle', width: 44, height: 34,
+      'font-size': 20, 'border-color': '#d6d1c4',
+      'background-color': '#eceadf', 'z-index': 1
     } },
     { selector: 'edge', style: {
       width: 1.5, 'curve-style': 'bezier',
-      'line-color': EDGE_DECLARED, 'line-style': 'solid'
+      'line-color': EDGE_DECLARED, 'line-style': 'solid',
+      label: 'data(pzh)', 'font-size': 18, color: '#94a3b8',
+      'text-background-color': '#faf9f5', 'text-background-opacity': 1,
+      'text-background-padding': 2, 'text-rotation': 'autorotate'
     } },
     { selector: 'edge[?inferred]', style: {
       'line-style': 'dashed', 'line-color': EDGE_INFERRED
     } },
+    { selector: 'edge.hide-label', style: { label: '' } },
     { selector: 'node.dimmed', style: { opacity: 0.12 } },
     { selector: 'edge.dimmed', style: { opacity: 0.06 } },
     { selector: 'node.obj-ring', style: {
@@ -149,7 +158,8 @@ function graphElements(g) {
     data: { id: n.id, label: n.label, cls: n.cls, color: nodeColor(n.cls) }
   })).concat(g.edges.filter(e => ids.has(e.s) && ids.has(e.o)).map((e, i) => ({
     group: 'edges',
-    data: { id: 'e' + i, source: e.s, target: e.o, inferred: !!e.inferred }
+    data: { id: 'e' + i, source: e.s, target: e.o, inferred: !!e.inferred,
+            pzh: PRED_ZH[e.p] || e.p }
   })));
 }
 
@@ -166,11 +176,31 @@ const FILTER_ZH = {
   Contract: '合同', TrainingSession: '训练课', InjuryRecord: '伤病记录'
 };
 
+function updatePresetActive() {
+  const eq = arr => state.graphFilters.size === arr.length &&
+    arr.every(c => state.graphFilters.has(c));
+  document.querySelectorAll('#cy-filters [data-preset]').forEach(b =>
+    b.classList.toggle('active',
+      eq(b.dataset.preset === 'core' ? CORE_CATS : Object.keys(FILTER_ZH))));
+}
+
 function buildFilters() {
   const box = $('cy-filters');
-  // 合同和训练课是纯数量噪声，默认不勾；其余默认显示
-  state.graphFilters = new Set(Object.keys(FILTER_ZH)
-    .filter(c => c !== 'Contract' && c !== 'TrainingSession'));
+  // 核心视图：比赛/伤病/合同/训练课默认移出（事件流里才需要），预设按钮一键切换
+  state.graphFilters = new Set(CORE_CATS);
+  document.querySelectorAll('#cy-filters [data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.graphFilters = new Set(btn.dataset.preset === 'core' ? CORE_CATS
+        : Object.keys(FILTER_ZH));
+      box.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        const cat = Object.keys(FILTER_ZH)
+          .find(c => FILTER_ZH[c] === input.parentElement.textContent.trim());
+        if (cat) input.checked = state.graphFilters.has(cat);
+      });
+      applyGraphFilter();
+      updatePresetActive();
+    });
+  });
   Object.keys(FILTER_ZH).forEach(cat => {
     const label = document.createElement('label');
     const input = document.createElement('input');
@@ -180,11 +210,13 @@ function buildFilters() {
       if (input.checked) state.graphFilters.add(cat);
       else state.graphFilters.delete(cat);
       applyGraphFilter();
+      updatePresetActive();
     });
     label.appendChild(input);
     label.appendChild(document.createTextNode(FILTER_ZH[cat]));
     box.appendChild(label);
   });
+  updatePresetActive();
 }
 
 function applyGraphFilter() {
@@ -291,45 +323,9 @@ function buildLegend() {
     item.className = 'legend-item';
     item.innerHTML = '<i class="dot' + (cls === 'Class' ? ' dot-class' : '') +
       '" style="background:' + CLASS_COLORS[cls] + '"></i>' +
-      esc(CLASS_ZH[cls] || cls);
+      esc(CLASS_ZH[cls] || cls) + (cls === 'Class' ? '（结构，按需看）' : '');
     box.appendChild(item);
   });
-}
-
-/* ---------- 语义推荐子图 ---------- */
-
-function focusSubgraph(pid) {
-  const g = state.graph;
-  const keep = new Set([pid]);
-  const edges = g.edges.filter(e => {
-    if ((e.s === pid || e.o === pid) && FOCUS_PREDS.indexOf(e.p) < 0) return false;
-    if (e.s !== pid && e.o !== pid) return false;
-    keep.add(e.s);
-    keep.add(e.o);
-    return true;
-  });
-  return { nodes: g.nodes.filter(n => keep.has(n.id)), edges: edges };
-}
-
-function renderFocusSubgraph(pid) {
-  if (!state.cy) return; // 无图谱（如 CDN 失败）时只展示推荐列表
-  state.filtered = true;
-  state.cy.batch(() => {
-    state.cy.elements().remove();
-    state.cy.add(graphElements(focusSubgraph(pid)));
-  });
-  runLayout(true);
-}
-
-function restoreFullGraph() {
-  if (!state.filtered) return;
-  state.filtered = false;
-  if (!state.cy) return;
-  state.cy.batch(() => {
-    state.cy.elements().remove();
-    state.cy.add(graphElements(state.graph));
-  });
-  updateStats();
 }
 
 /* ---------- 高亮管理 ---------- */
@@ -365,50 +361,68 @@ function onEventTypeChange() {
   });
 }
 
+async function postEvent(type, playerId, extra) {
+  const body = Object.assign({ type, player_id: playerId }, extra || {});
+  try {
+    const r = await post('/api/events', body);
+    state.lastReport = r;
+    renderEventReport(r);
+    toast('事件已注入世界');
+    await Promise.all([loadGraph(), refreshDecisionPanel()]);
+    return r;
+  } catch (e) { toast(e.message, true); return null; }
+}
+
 async function sendEvent() {
   const type = $('event-type').value;
   const player = $('event-player').value;
   if (!player) { toast('请先选择球员', true); return; }
-  const body = { type, player_id: player };
-  if (type === 'match') body.minutes = +$('event-minutes').value;
-  if (type === 'training') body.load = +$('event-load').value;
-  if (type === 'injury') body.weeks_out = +$('event-weeks').value;
-  try {
-    const r = await post('/api/events', body);
-    renderEventReport(r);
-    toast('事件已注入世界');
-    await Promise.all([loadGraph(), refreshDecisionPanel()]);
-  } catch (e) { toast(e.message, true); }
+  const extra = {};
+  if (type === 'match') extra.minutes = +$('event-minutes').value;
+  if (type === 'training') extra.load = +$('event-load').value;
+  if (type === 'injury') extra.weeks_out = +$('event-weeks').value;
+  await postEvent(type, player, extra);
+}
+
+function nodeLabel(id) {
+  const n = (state.graph && state.graph.nodes.find(x => x.id === id)) || null;
+  return n ? n.label : id;
 }
 
 function renderEventReport(r) {
   const box = $('event-report');
-  let html = '<div class="chain"><p class="chain-title">传导链</p>';
-  r.chain.forEach((step, i) => {
-    html += '<div class="chain-step lit"><span class="chain-num">' + (i + 1) + '</span>' +
-      '<div class="chain-body"><div class="chain-expl">' + esc(step) + '</div></div></div>';
+  let html = '<div class="chain"><p class="chain-title">因果链卡片</p>';
+  r.chain.forEach(step => {
+    html += '<div class="chain-step lit"><span class="chain-badge b-' + esc(step.stage) + '">' +
+      esc(STAGE_ZH[step.stage] || step.stage) + '</span>' +
+      '<div class="chain-expl">' + esc(step.text) + '</div></div>';
   });
+  html += '<p class="chain-title">状态变化</p>';
   if (r.state_changes.length) {
-    html += '<p class="chain-title">状态变化</p>';
     r.state_changes.forEach(c => {
-      html += '<div class="state-change">' + esc(c.id) + ' 体能 ' +
-        (c.old === null ? '–' : c.old) + ' → ' + c.new + '</div>';
+      html += '<div class="state-change">' + esc(nodeLabel(c.id)) + ' 体能 <b>' +
+        (c.old === null ? '–' : c.old) + '</b> → <b>' + c.new + '</b></div>';
     });
+  } else {
+    html += '<div class="chain-expl muted">本次无状态变化</div>';
   }
   // 建议是推论：本次事件的目标球员未必触发条目，把"触发了几条"说清楚，
   // 否则"清单共 N 条"会被读成"本次事件产生了 N 条建议"。
-  const nodeName = () => {
-    const n = (state.graph && state.graph.nodes.find(x => x.id === r.event.target)) || null;
-    return n ? '「' + n.label + '」' : '';
-  };
+  const tname = r.event.target ? '「' + nodeLabel(r.event.target) + '」' : '';
   const mine = r.event.target
     ? r.suggestions.filter(s => (s.targets || []).some(t => t.id === r.event.target))
     : [];
   if (mine.length) {
-    html += '<p class="chain-title">' + nodeName() + '触发 ' + mine.length +
-      ' 条建议（见决策中心）；全球建议清单共 ' + r.suggestions.length + ' 条</p></div>';
+    html += '<p class="chain-title">' + esc(tname) + '触发 ' + mine.length +
+      ' 条建议（点芯片直达决策中心）；全球建议清单共 ' + r.suggestions.length + ' 条</p>';
+    mine.forEach(s => {
+      html += '<span class="sug-chip" data-aid="' + esc(s.id) + '">' +
+        esc(ACTION_ZH[s.type] || s.type) + '：' +
+        esc(s.targets[0] ? s.targets[0].label : '') + '</span>';
+    });
+    html += '</div>';
   } else {
-    html += '<p class="chain-title">' + nodeName() + '本次未触发任何建议' +
+    html += '<p class="chain-title">' + esc(tname) + '本次未触发任何建议' +
       '（建议是推论，条件未过就不产生）；全球建议清单共 ' + r.suggestions.length +
       ' 条</p></div>';
   }
@@ -466,7 +480,8 @@ async function loadActions() {
     '<span class="type-badge">' + esc(ACTION_ZH[a.type] || a.type) + '</span>' +
     '<span class="action-btns">' +
     '<button class="action-preview" data-id="' + esc(a.id) + '">预览影响</button>' +
-    '<button class="action-execute" data-id="' + esc(a.id) + '">执行</button></span></div>' +
+    '<button class="action-execute" data-id="' + esc(a.id) + '">' +
+    (a.pending ? '确认执行' : '执行') + '</button></span></div>' +
     '<div class="action-targets">对象：' + a.targets.map(t =>
       '<span class="target" data-id="' + esc(t.id) + '">' + esc(t.label) + '</span>').join('') +
     '</div><div class="why">' + esc(a.reason) + '</div>' +
@@ -492,8 +507,12 @@ async function executeOne(id, btn) {
   try {
     const r = await post('/api/action/' + encodeURIComponent(id) + '/execute');
     toast(r.message || (r.pending ? '已登记待审批' : '已执行'), r.ok === false);
-    if (r.pending) { btn.textContent = '确认执行'; }
     await Promise.all([loadActions(), loadAudit(), loadGraph()]);
+    if (r.pending) {
+      // 重渲染后再标记：innerHTML 已重建，必须在最新 DOM 上改按钮
+      const b = document.querySelector('.action-execute[data-id="' + id + '"]');
+      if (b) b.textContent = '确认执行';
+    }
   } catch (e) { toast(e.message, true); }
 }
 
@@ -548,6 +567,7 @@ async function resetDemo() {
     clearHighlights();
     closeDrawer();
     resetEventPanel();
+    state.lastReport = null;
     await Promise.all([loadGraph(), loadActions(), loadAudit(), loadRules()]);
     toast('演示已重置：事件、动作与审计均已清除');
   } catch (e) { toast(e.message, true); }
@@ -592,6 +612,97 @@ async function openDrawer(id) {
 
 function closeDrawer() { $('drawer').classList.remove('open'); }
 
+/* ---------- 剧情模式：九步引导剧本 ---------- */
+
+const TOUR = [
+  { tab: 'overview',
+    text: '灰色实线是声明的事实，青色虚线是 OWL-RL 推理得出的结论——本体让世界「可推理」，图里已经能看到位置子类树的推论。',
+    highlight: '.canvas-legend' },
+  { tab: 'overview',
+    text: '点开任意球员节点：抽屉里「声明的事实」与「推断的事实」分组展示——推断层永不落库，随事实即时重算。',
+    highlight: 'graph:p_dm1' },
+  { tab: 'player',
+    text: '问一个对象四句话：是谁？现在状态？为什么？能做什么？——这就是对象运行时 describe() 的灵魂。先在下方选一名球员。',
+    highlight: '#player-card' },
+  { tab: 'events',
+    text: '事件是世界唯一的输入通道。现在让亚马尔受伤 4 周——刚才点「下一步」时已自动注入，看右侧因果链。',
+    highlight: '#btn-send-event',
+    action: () => postEvent('injury', 'p_yam1', { weeks_out: 4 }) },
+  { tab: 'events',
+    text: '因果链卡片：感知→结算→派生→规则——一次事件如何震动世界，一屏读完。',
+    highlight: '#event-report' },
+  { tab: 'decisions',
+    text: '建议是推论，不是数据：受伤事实一写入 effects 层，治疗/征调建议自动出现。',
+    highlight: '#actions-list' },
+  { tab: 'decisions',
+    text: '治理有边界：治疗要两步审批。刚才已自动执行第一步（登记待审批），对应的「执行」按钮已变「确认执行」——你自己点完这一步。',
+    highlight: '#actions-list',
+    action: async () => {
+      await refreshDecisionPanel();
+      const data = await api('/api/actions');
+      const act = data.actions.find(a => a.type === 'StartTreatment');
+      if (act) await executeOne(act.id, null);
+    } },
+  { tab: 'decisions',
+    text: '审计全程留痕（step 计数器，不用时钟）；执行后效果写回图谱、建议随之消失——这就是「建议=推论」的闭环。',
+    highlight: '#audit-list' },
+  { tab: 'learn',
+    text: '五个 Tab 是 learn/ 四章教程的可视化对应物。想深入？跟着下面的学习路径一章章读下去。',
+    highlight: '.learn-card' }
+];
+
+const tour = { active: false, i: 0, done: new Set() };
+
+function clearTourHighlights() {
+  document.querySelectorAll('.tour-spot').forEach(el => el.classList.remove('tour-spot'));
+  if (state.cy) state.cy.nodes().removeClass('wave-3');
+}
+
+async function showStep(i, forward) {
+  tour.i = i;
+  const t = TOUR[i];
+  clearTourHighlights();
+  switchTab(t.tab);
+  if (t.action && forward && !tour.done.has(i)) {
+    tour.done.add(i);
+    try { await t.action(); } catch (e) { toast(e.message, true); }
+  }
+  // switchTab 会 resetEventPanel——用最近一次报告恢复因果链卡片
+  if (t.tab === 'events' && state.lastReport) renderEventReport(state.lastReport);
+  $('tour-text').textContent = '第 ' + (i + 1) + '/' + TOUR.length + ' 步 · ' + t.text;
+  $('tour-progress').innerHTML = TOUR.map((_, k) =>
+    '<i class="tour-dot' + (k === i ? ' on' : (k < i ? ' done' : '')) + '"></i>').join('');
+  $('tour-next').textContent = i === TOUR.length - 1 ? '完成' : '下一步';
+  requestAnimationFrame(() => {
+    if (!t.highlight) return;
+    if (t.highlight.startsWith('graph:')) {
+      if (state.cy) {
+        const n = state.cy.getElementById(t.highlight.slice(6));
+        if (n.nonempty()) n.addClass('wave-3');
+      }
+    } else {
+      const el = document.querySelector(t.highlight);
+      if (el) el.classList.add('tour-spot');
+    }
+  });
+}
+
+async function startTour() {
+  let audit = [];
+  try { audit = await api('/api/audit'); } catch { /* 后端未起时照样能看剧情 */ }
+  $('tour-notice').hidden = audit.length === 0;
+  $('tour-dock').hidden = false;
+  tour.active = true;
+  tour.done.clear();
+  await showStep(0, false);
+}
+
+function endTour() {
+  tour.active = false;
+  $('tour-dock').hidden = true;
+  clearTourHighlights();
+}
+
 /* ---------- Tab 切换 ---------- */
 
 function switchTab(name) {
@@ -623,6 +734,17 @@ function bind() {
   $('fitness-floor').addEventListener('input', onFloorSlider);
   $('player-select').addEventListener('change', loadPlayerCard);
   $('btn-reset').addEventListener('click', resetDemo);
+  $('btn-tour').addEventListener('click', () => tour.active ? endTour() : startTour());
+  $('tour-next').addEventListener('click', async () => {
+    if (tour.i >= TOUR.length - 1) { endTour(); toast('剧情走完——接下来自由探索'); return; }
+    await showStep(tour.i + 1, true);
+  });
+  $('tour-prev').addEventListener('click', () => showStep(Math.max(0, tour.i - 1), false));
+  $('tour-exit').addEventListener('click', endTour);
+  $('tour-reset').addEventListener('click', async () => {
+    await resetDemo();
+    $('tour-notice').hidden = true;
+  });
   $('actions-list').addEventListener('click', ev => {
     const pb = ev.target.closest('.action-preview');
     if (pb) { previewOne(pb.dataset.id); return; }
@@ -632,6 +754,19 @@ function bind() {
     if (t) openDrawer(t.dataset.id);
   });
   $('player-card').addEventListener('click', onPlayerCardClick);
+  $('event-report').addEventListener('click', async ev => {
+    const chip = ev.target.closest('.sug-chip');
+    if (!chip) return;
+    switchTab('decisions');
+    await refreshDecisionPanel();
+    const hit = document.querySelector('.action-card [data-id="' + chip.dataset.aid + '"]');
+    const card = hit ? hit.closest('.action-card') : null;
+    if (card) {
+      card.classList.add('flash');
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => card.classList.remove('flash'), 2000);
+    }
+  });
 }
 
 async function init() {
@@ -651,6 +786,9 @@ async function init() {
     minZoom: 0.2, maxZoom: 2.5
   });
   window.__cy = state.cy;   // 调试句柄（也可用于浏览器端测试）
+  state.cy.on('zoom', () => {
+    state.cy.elements().toggleClass('hide-label', state.cy.zoom() < 0.6);
+  });
   state.cy.on('tap', 'node', evt => {
     focusNeighborhood(evt.target);
     openDrawer(evt.target.id());

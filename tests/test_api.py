@@ -33,6 +33,18 @@ def test_injury_event_returns_report(client):
     assert "chain" in body and "suggestions" in body
 
 
+def test_event_chain_steps_structured(client):
+    r = client.post("/api/events", json={"type": "injury", "player_id": "p_st1", "weeks_out": 4})
+    assert r.status_code == 200
+    steps = r.json()["chain"]
+    assert steps and all(set(s) == {"stage", "text"} and s["text"] for s in steps)
+    stages = [s["stage"] for s in steps]
+    assert stages == ["perceive", "settle", "compute", "rules"]
+    audit = client.get("/api/audit").json()
+    assert audit[0]["detail"]              # 审计 detail 取 settle 步文案，非空且是字符串
+    assert isinstance(audit[0]["detail"], str)
+
+
 def test_describe_object(client):
     r = client.get("/api/object/p_am1/describe")
     assert r.status_code == 200
@@ -97,6 +109,20 @@ def test_actions_includes_roster(client):
     """/api/actions 携带报名名单计数（一线队 + 已征调青年队 / 上限 16）。"""
     body = client.get("/api/actions").json()
     assert body["roster"] == {"count": 14, "limit": 16}
+
+
+def test_actions_marks_pending_after_first_execute(client):
+    """审批动作第一次执行后，/api/actions 的对应条目带 pending 标志——
+    前端据此渲染「确认执行」，切 Tab/刷新后不丢。"""
+    aid = next(a["id"] for a in client.get("/api/actions").json()["actions"]
+               if a["type"] == "StartTreatment")
+    assert client.post(f"/api/action/{aid}/execute").json()["pending"] is True
+    row = next(a for a in client.get("/api/actions").json()["actions"]
+               if a["id"] == aid)
+    assert row["pending"] is True
+    others = [a for a in client.get("/api/actions").json()["actions"]
+              if a["id"] != aid]
+    assert all(a.get("pending") is False for a in others)
 
 
 def test_roster_grows_after_callup(client):

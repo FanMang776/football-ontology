@@ -23,6 +23,7 @@
     <button class="tab" data-tab="player"><i class="tab-dot" style="--c:#22a06b"></i>球员对象</button>
     <button class="tab" data-tab="decisions"><i class="tab-dot" style="--c:#d9a514"></i>决策中心</button>
     <button class="tab" data-tab="learn"><i class="tab-dot" style="--c:#3b82c4"></i>学习路径</button>
+    <button class="btn ghost tour-entry" id="btn-tour">▶ 剧情模式</button>
   </nav>
 </header>
 
@@ -30,7 +31,10 @@
 
   <section class="canvas-wrap">
     <div id="cy"></div>
-    <div class="cy-filters" id="cy-filters"></div>
+    <div class="cy-filters" id="cy-filters">
+      <button class="preset" data-preset="core">核心</button>
+      <button class="preset" data-preset="full">完整</button>
+    </div>
     <div class="canvas-legend">
       <span class="lg-item"><span class="lg-line solid"></span>声明的事实</span>
       <span class="lg-item"><span class="lg-line dashed"></span>推理得出（OWL-RL）</span>
@@ -155,6 +159,21 @@
 
   </aside>
 </main>
+
+<!-- ═══ 剧情坞 ═══ -->
+<aside class="tour-dock" id="tour-dock" hidden>
+  <div class="tour-progress" id="tour-progress"></div>
+  <p class="tour-notice" id="tour-notice" hidden>
+    检测到世界已有变化，建议先重置再走剧情。
+    <button class="btn ghost" id="tour-reset">重置演示</button>
+  </p>
+  <p class="tour-text" id="tour-text"></p>
+  <div class="tour-btns">
+    <button class="btn ghost" id="tour-prev">上一步</button>
+    <button class="btn primary" id="tour-next">下一步</button>
+    <button class="btn ghost" id="tour-exit">退出</button>
+  </div>
+</aside>
 
 <!-- ═══ 实体详情抽屉 ═══ -->
 <aside class="drawer" id="drawer">
