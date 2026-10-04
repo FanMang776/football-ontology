@@ -969,3 +969,87 @@ input[type="range"] {
 .cy-filters .preset.active {
   background: var(--ink); color: #fff; border-color: var(--ink);
 }
+
+/* ---------- 智能体对话（第六 Tab） ---------- */
+
+.agent-messages {
+  height: 340px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msg {
+  max-width: 85%;
+  padding: 7px 12px;
+  border-radius: 12px;
+  line-height: 1.6;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg-user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.msg-bot {
+  align-self: flex-start;
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-bottom-left-radius: 4px;
+}
+
+.agent-card {
+  align-self: flex-start;
+  max-width: 90%;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--hairline-dark);
+  background: #fbfaf6;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.agent-card-pending {
+  border: 1px solid var(--warn);
+  background: #fdf3e7;
+  color: var(--ink);
+}
+
+.agent-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.agent-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--hairline-dark);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.agent-notice {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--hairline-dark);
+  border-radius: 8px;
+  background: #fbfaf6;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.agent-notice code {
+  font-size: 11.5px;
+}

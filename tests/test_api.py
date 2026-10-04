@@ -206,3 +206,11 @@ def test_agent_chat_rejects_bad_history(client):
     assert r.status_code == 422
     r = client.post("/api/agent/chat", json={"messages": "hi"})
     assert r.status_code == 422
+
+
+def test_agent_status_reports_mock(client, monkeypatch):
+    import api.main as m
+    monkeypatch.setattr(m, "AGENT_CLIENT", m.agent.MockClient())
+    r = client.get("/api/agent/status")
+    assert r.status_code == 200 and r.json()["mock"] is True
+    assert "model" in r.json()

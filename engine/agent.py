@@ -244,14 +244,14 @@ class MockClient(BaseClient):
 
     RULES = [   # (关键词, [(text, [(tool, args)])])，按序取第一个命中的规则
         ("建议", [(None, [("list_suggestions", {})]),
-                  (None, [])]),
+                  ("以上是当前建议清单（演示模式），每条的理由见决策中心。", [])]),
         ("名单", [(None, [("list_players", {})]),
-                  (None, [])]),
+                  ("以上是全队名单与体能摘要（演示模式）。", [])]),
         ("伤", [(None, [("list_players", {})]),
-                (None, [])]),
+                ("以上是名单，injured_weeks 大于 0 即在伤停（演示模式）。", [])]),
         ("轮休", [(None, [("list_suggestions", {})]),
                   (None, [("execute_action", {"action_id": "action_RestPlayer_p_am1"})]),
-                  (None, [])]),
+                  ("已为德布劳内执行轮休（演示模式）。", [])]),
     ]
 
     def stream_chat(self, model, messages, tools):

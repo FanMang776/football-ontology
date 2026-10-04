@@ -231,6 +231,14 @@ class ChatBody(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1)
 
 
+@app.get("/api/agent/status")
+def agent_status():
+    """前端提示条用：当前是演示模式（mock）还是真实模型。"""
+    mock = isinstance(AGENT_CLIENT, agent.MockClient)
+    return {"mock": mock,
+            "model": "mock" if mock else os.environ.get("LLM_MODEL", "")}
+
+
 @app.post("/api/agent/chat")
 def agent_chat(body: ChatBody):
     """流式对话端点。后端无会话状态：历史由前端持有、全量上送。
