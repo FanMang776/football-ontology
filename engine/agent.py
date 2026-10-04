@@ -147,3 +147,172 @@ def run_tool(kb, name: str, args: dict) -> dict:
         return impl(kb, args or {})
     except Exception as e:      # noqa: BLE001——工具边界，一切失败都转成 ok=False
         return {"ok": False, "message": f"{type(e).__name__}: {e}"}
+
+
+# ---------- 工具调用循环：Agent 的脑 ----------
+
+import json as _json
+import os as _os
+
+MAX_ROUNDS = 6
+MAX_TOKENS = 2000
+
+CAP_MESSAGE = "工具轮数已达上限，以下基于已获信息回答。"
+
+
+def _summarize(name: str, result: dict) -> str:
+    """确定性紧凑摘要：前端只展示这句，完整结果仅本轮内喂回模型。"""
+    if not result.get("ok", True):
+        prefix = "[pending] " if result.get("pending") else ""
+        return prefix + result.get("message", "工具调用失败")
+    if name == "list_players":
+        ps = result["players"]
+        low = min(ps, key=lambda p: (p["fitness"], p["id"]))
+        return f"共 {len(ps)} 名球员，体能最低的是 {low['label']}({low['fitness']})"
+    if name == "list_suggestions":
+        acts = result["actions"]
+        return f"共 {len(acts)} 条建议：" + "、".join(a["id"] for a in acts)
+    if name == "preview_action":
+        add = "、".join("+" + a for a in sorted(result["additions"]))
+        ret = "、".join("−" + a for a in sorted(result["retractions"]))
+        return f"将写入：{add or '无'}；将移除：{ret or '无'}"
+    if name == "execute_action":
+        prefix = "[pending] " if result.get("pending") else ""
+        return prefix + result.get("message", "已执行")
+    if name == "inject_event":
+        settle = next((s["text"] for s in result["chain"]
+                       if s["stage"] == "settle"), "")
+        return settle or "事件已注入"
+    if name == "describe_object":
+        return "；".join(result.get("现在状态", []))
+    return result.get("message", "完成")
+
+
+def _assistant_msg(text, calls):
+    tc = [{"id": c["id"], "type": "function",
+           "function": {"name": c["name"],
+                        "arguments": _json.dumps(c["arguments"], ensure_ascii=False)}}
+          for c in calls]
+    msg = {"role": "assistant", "content": text or ""}
+    if tc:
+        msg["tool_calls"] = tc
+    return msg
+
+
+def run_turn(kb, client, model: str, messages: list):
+    """一轮对话：循环 流式回答 ↔ 工具执行，产出 SSE 事件字典（生成器）。
+
+    LLM 调用不持 kb._lock；工具执行经 kb 方法自行加锁。世界可能在
+    Agent 读与执行之间变化——execute 自带二次校验（建议是推论，执行时重验）。
+    """
+    for rnd in range(1, MAX_ROUNDS + 1):
+        text_parts = []
+        calls = None
+        for chunk in client.stream_chat(model, messages, TOOLS):
+            if chunk["type"] == "text-delta":
+                text_parts.append(chunk["text"])
+                yield {"type": "delta", "text": chunk["text"]}
+            elif chunk["type"] == "tool_calls":
+                calls = chunk["calls"]
+        if not calls:
+            messages.append({"role": "assistant",
+                             "content": "".join(text_parts)})
+            yield {"type": "done", "rounds_used": rnd}
+            return
+        messages.append(_assistant_msg("".join(text_parts), calls))
+        for c in calls:
+            yield {"type": "tool_call", "name": c["name"], "args": c["arguments"]}
+            result = run_tool(kb, c["name"], c["arguments"])
+            yield {"type": "tool_result", "name": c["name"],
+                   "summary": _summarize(c["name"], result)}
+            messages.append({"role": "tool", "tool_call_id": c["id"],
+                             "content": _json.dumps(result, ensure_ascii=False,
+                                                    sort_keys=True)})
+    yield {"type": "delta", "text": CAP_MESSAGE}
+    yield {"type": "done", "rounds_used": MAX_ROUNDS}
+
+
+# ---------- LLM 客户端：OpenAI 兼容协议（GLM 等国产模型通用） ----------
+
+class BaseClient:
+    def stream_chat(self, model, messages, tools):
+        raise NotImplementedError
+
+
+class MockClient(BaseClient):
+    """关键词脚本假模型：仅供无 key 演示。测试请注入 FakeClient，别依赖此表。"""
+
+    RULES = [   # (关键词, [(text, [(tool, args)])])，按序取第一个命中的规则
+        ("建议", [(None, [("list_suggestions", {})]),
+                  (None, [])]),
+        ("名单", [(None, [("list_players", {})]),
+                  (None, [])]),
+        ("伤", [(None, [("list_players", {})]),
+                (None, [])]),
+        ("轮休", [(None, [("list_suggestions", {})]),
+                  (None, [("execute_action", {"action_id": "action_RestPlayer_p_am1"})]),
+                  (None, [])]),
+    ]
+
+    def stream_chat(self, model, messages, tools):
+        last = next((m["content"] for m in reversed(messages)
+                     if m.get("role") == "user" and m.get("content")), "")
+        for keyword, script in self.RULES:
+            if keyword in last:
+                idx = sum(1 for m in messages
+                          if m.get("role") == "assistant" and m.get("tool_calls"))
+                if idx < len(script):
+                    text, calls = script[idx]
+                    if text:
+                        yield {"type": "text-delta", "text": text}
+                    yield {"type": "tool_calls",
+                           "calls": [{"id": f"m{i}", "name": n, "arguments": a}
+                                     for i, (n, a) in enumerate(calls or [])]}
+                    return
+        yield {"type": "text-delta", "text": "（演示模式）我基于本体世界回答：请试试问「有什么建议」「球队名单」或「帮德布劳内轮休」。"}
+        yield {"type": "tool_calls", "calls": []}
+
+
+class OpenAIClient(BaseClient):
+    """OpenAI 兼容流式客户端：文本增量直通，tool_calls 增量按 index 聚合。"""
+
+    def __init__(self, base_url, api_key):
+        from openai import OpenAI
+        self._client = OpenAI(base_url=base_url, api_key=api_key)
+
+    def stream_chat(self, model, messages, tools):
+        stream = self._client.chat.completions.create(
+            model=model, messages=messages, tools=tools,
+            stream=True, max_tokens=MAX_TOKENS)
+        text_parts = []
+        calls = {}          # index -> {"id", "name", "arguments": [parts]}
+        for chunk in stream:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if delta is None:
+                continue
+            if delta.content:
+                text_parts.append(delta.content)
+                yield {"type": "text-delta", "text": delta.content}
+            for tc in (delta.tool_calls or []):
+                slot = calls.setdefault(tc.index, {"id": tc.id, "name": "",
+                                                   "arguments": []})
+                if tc.id:
+                    slot["id"] = tc.id
+                if tc.function and tc.function.name:
+                    slot["name"] = tc.function.name
+                if tc.function and tc.function.arguments:
+                    slot["arguments"].append(tc.function.arguments)
+        out = [{"id": slot["id"], "name": slot["name"],
+                "arguments": _json.loads("".join(slot["arguments"]) or "{}")}
+               for _, slot in sorted(calls.items())]
+        yield {"type": "tool_calls", "calls": out}
+
+
+def make_client() -> BaseClient:
+    """LLM_MODEL=mock → MockClient（绝不读 LLM_API_KEY，无 key 可演示）；
+    否则 OpenAI 兼容客户端，三个环境变量：LLM_BASE_URL / LLM_API_KEY / LLM_MODEL。"""
+    if _os.environ.get("LLM_MODEL") == "mock":
+        return MockClient()
+    base_url = _os.environ["LLM_BASE_URL"]
+    api_key = _os.environ["LLM_API_KEY"]
+    return OpenAIClient(base_url, api_key)
