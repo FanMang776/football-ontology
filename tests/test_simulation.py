@@ -120,3 +120,47 @@ def test_simulate_empty_list():
     from engine.simulation import simulate
     out = simulate(fresh(), [])
     assert out["ok"] is False and out["message"]
+
+
+def test_multi_step_chain_and_conditional_failure():
+    """多步连锁：第 2 步基于第 1 步后的沙盒状态；中途条件失效续走后续步骤。"""
+    from engine.simulation import simulate
+    kb = fresh()
+    kb.dispatch(InjuryEvent(EX.p_am1, 4, "伤"))     # AM 缺口 → 征调 y_am1/y_am2
+    aids = [a["id"] for a in kb.list_actions()
+            if a["type"] == "CallUpYouth" and "p_yam" in a["targets"][0]["id"]]
+    assert len(aids) == 2
+    aids.append("action_RestPlayer_p_st1")          # 不存在的建议 → 单步失败
+    out = simulate(kb, aids)
+    assert [s["ok"] for s in out["steps"]] == [True, True, False]
+    assert out["steps"][2]["ok"] is False
+    assert out["ok"] is True                        # 有 ≥1 步成功即为 true
+    called = sorted(t["id"] for a in kb.list_actions()
+                    if a["type"] == "CallUpYouth" and "p_yam" in a["targets"][0]["id"]
+                    for t in a["targets"])
+    assert len(called) == 2                         # 真实世界：两名青年队都没被真征调
+
+
+def test_multi_step_repeated_action_id():
+    """同一动作推两次：第二次不在清单中，单步失败不炸。"""
+    from engine.simulation import simulate
+    kb = fresh()
+    aid = find(kb, "RestPlayer", "p_")
+    out = simulate(kb, [aid, aid])
+    assert [s["ok"] for s in out["steps"]] == [True, False]
+    assert out["ok"] is True
+
+
+def test_veto_cascade_inside_sandbox():
+    """报名 14→16 达上限：沙盒里第三次征调被否决，veto 只写在沙盒。"""
+    from engine.simulation import simulate
+    kb = fresh()
+    kb.dispatch(InjuryEvent(EX.p_am1, 4, "伤"))     # AM 缺口 → y_am1/y_am2
+    kb.dispatch(InjuryEvent(EX.p_gk1, 4, "伤"))     # GK 缺口 → y_gk1
+    aids = [a["id"] for a in kb.list_actions() if a["type"] == "CallUpYouth"]
+    assert len(aids) == 3
+    before = snapshot(kb)
+    out = simulate(kb, aids)
+    assert [s["ok"] for s in out["steps"]] == [True, True, False]
+    assert "上限" in out["steps"][2]["message"]
+    assert snapshot(kb) == before                   # 真实世界无 veto 三元组
