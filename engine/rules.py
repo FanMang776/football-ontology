@@ -62,6 +62,7 @@ Q_YOUTH_OF = PREFIX + """
 SELECT DISTINCT ?y WHERE {
     ?y a ex:YouthPlayer, %(pos)s ; ex:squadOf ?club .
     FILTER NOT EXISTS { ?y ex:calledUp true }
+    FILTER NOT EXISTS { ?y ex:injuredWith ?rec2 . ?rec2 ex:weeksOut ?w2 . FILTER(?w2 > 0) }
 }
 """
 

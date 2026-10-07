@@ -46,6 +46,18 @@ def test_squad_gap_suggests_callup():
     assert targets == {"p_yam1", "p_yam2"}
 
 
+def test_callup_skips_injured_youth():
+    """青年队候选伤停 → 不建议征调（候选人也得能上场，征了白征）。"""
+    g = g_with_fitness({"p_am1": 56})
+    rec = EX.inj_p_yam1
+    g.add((EX.p_yam1, EX.injuredWith, rec))
+    g.add((rec, EX.weeksOut, Literal(4)))
+    r = rules(g)
+    callups = [i for i in r.values() if i["type"] == "CallUpYouth"]
+    targets = {str(t).split("#")[-1] for i in callups for t in i["targets"]}
+    assert targets == {"p_yam2"}
+
+
 def test_treatment_suggested_for_long_injury():
     r = rules(g_with_fitness({}))
     treats = [i for i in r.values() if i["type"] == "StartTreatment"]

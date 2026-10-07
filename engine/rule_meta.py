@@ -30,7 +30,7 @@ RULES = [
         "summary": "位置出现一线队缺口时,从青年队征调补缺。",
         "conditions": [
             {"text": "位置可用一线队球员(未伤停)不足 2 人", "params": []},
-            {"text": "存在可征调的该位置青年队球员", "params": []},
+            {"text": "存在可征调的该位置青年队球员(未伤停)", "params": []},
         ],
         "code": "engine/rules.py:111",
         "chapter": ["learn/03-推理如何发生.md", "learn/04-从状态到行动.md"],
