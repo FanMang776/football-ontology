@@ -100,6 +100,14 @@ def test_run_turn_simulate_via_fake_client(kb):
     assert tr["summary"].startswith("推演")
 
 
+def test_mock_client_simulate_demo():
+    # MockClient 是关键词驱动（RULES），不收脚本；命中靠用户消息里的"推演"
+    evts = collect(KnowledgeBase(), MockClient(),
+                   [{"role": "user", "content": "如果轮休德布劳内，推演一下"}])
+    summaries = [e.get("summary", "") for e in evts if e["type"] == "tool_result"]
+    assert any(s.startswith("推演") for s in summaries)
+
+
 # ---------- Task 2：run_turn 工具循环与客户端 ----------
 
 from engine.agent import MAX_ROUNDS, MockClient, run_turn
