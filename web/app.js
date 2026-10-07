@@ -669,7 +669,7 @@ const TOUR = [
     text: '审计全程留痕（step 计数器，不用时钟）；执行后效果写回图谱、建议随之消失——这就是「建议=推论」的闭环。',
     highlight: '#audit-list' },
   { tab: 'learn',
-    text: '五个 Tab 是 learn/ 四章教程的可视化对应物。想深入？跟着下面的学习路径一章章读下去。',
+    text: '五个 Tab 是 learn/ 六章教程的可视化对应物。想深入？跟着下面的学习路径一章章读下去。',
     highlight: '.learn-card' }
 ];
 
