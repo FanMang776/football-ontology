@@ -18,6 +18,8 @@ SYSTEM_PROMPT = """你是群星 FC 足球本体世界的助理教练。这个世
 2. execute_action 返回 pending=true 时，必须停下来向用户复述审批要求，
    得到用户明确确认后才再次调用同一工具执行——治理门对任何人都一样。
 3. 用户问「为什么」时，用 describe_object 的「为什么」字段回答，不要自己推理。
+4. simulate_actions 的结果只在沙盒成立，不能当作已发生的事实；
+   用户决定采纳时，必须走 execute_action 真正执行。
 
 示例：
 - 用户「帮我把德布劳内轮休」→ 调 execute_action(action_id=action_RestPlayer_p_am1)。
@@ -61,6 +63,16 @@ TOOLS = [
                        "properties": {"action_id": {"type": "string",
                                        "description": "建议动作 id"}},
                        "required": ["action_id"]},
+    }},
+    {"type": "function", "function": {
+        "name": "simulate_actions",
+        "description": "在沙盒世界按顺序推演一串建议动作，返回每步结果与"
+                       "沙盒世界和真实世界的差异。不落库，不影响真实世界",
+        "parameters": {"type": "object",
+                       "properties": {"actions": {"type": "array",
+                                        "items": {"type": "string"},
+                                        "description": "建议动作 id，按执行顺序"}},
+                       "required": ["actions"]},
     }},
     {"type": "function", "function": {
         "name": "inject_event",
@@ -116,6 +128,14 @@ def _execute(kb, args):
     return kb.execute(args["action_id"])
 
 
+def _simulate(kb, args):
+    from engine.simulation import simulate
+    actions = args.get("actions")
+    if not isinstance(actions, list) or not actions:
+        return {"ok": False, "message": "actions 必须是非空的动作 id 列表"}
+    return simulate(kb, [str(a) for a in actions])
+
+
 def _inject(kb, args):
     try:
         report = kb.dispatch(ev.build_event(
@@ -134,6 +154,7 @@ _TOOLS_IMPL = {
     "list_suggestions": lambda kb, args: _suggestions(kb),
     "preview_action": _preview,
     "execute_action": _execute,
+    "simulate_actions": _simulate,
     "inject_event": _inject,
 }
 
@@ -189,6 +210,18 @@ def _summarize(name: str, result: dict) -> str:
         settle = next((s["text"] for s in result["chain"]
                        if s["stage"] == "settle"), "")
         return settle or "事件已注入"
+    if name == "simulate_actions":
+        steps = result.get("steps") or []
+        ok_n = sum(1 for s in steps if s.get("ok"))
+        diff = result.get("world_diff") or {}
+        parts = [f"推演 {len(steps)} 步（{ok_n} 成功）"]
+        parts += [f"{c['field']} {c['from']}→{c['to']}"
+                  for c in diff.get("state", [])]
+        if diff.get("suggestions_added"):
+            parts.append(f"新增建议 {len(diff['suggestions_added'])} 条")
+        if diff.get("suggestions_removed"):
+            parts.append(f"消失建议 {len(diff['suggestions_removed'])} 条")
+        return "；".join(parts)
     if name == "describe_object":
         return "；".join(result.get("现在状态", []))
     return result.get("message", "完成")

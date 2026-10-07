@@ -1,11 +1,12 @@
 """Agent 工具表：六个本体操作工具的 schema、分发与治理路径。"""
 import pytest
 
-from engine.agent import SYSTEM_PROMPT, TOOLS, run_tool
+from engine.agent import SYSTEM_PROMPT, TOOLS, run_tool, _summarize
 from engine.knowledge_base import KnowledgeBase
 
 TOOL_NAMES = {"list_players", "describe_object", "list_suggestions",
-              "preview_action", "execute_action", "inject_event"}
+              "preview_action", "execute_action", "inject_event",
+              "simulate_actions"}
 
 
 @pytest.fixture()
@@ -62,6 +63,41 @@ def test_execute_action_walks_governance(kb):
 def test_system_prompt_pins_discipline():
     for word in ("治理", "确认", "没有这个数据"):
         assert word in SYSTEM_PROMPT
+
+
+def test_simulate_actions_tool(kb):
+    sug = run_tool(kb, "list_suggestions", {})
+    aid = next(a["id"] for a in sug["actions"] if a["type"] == "RestPlayer")
+    out = run_tool(kb, "simulate_actions", {"actions": [aid]})
+    assert out["ok"] is True and out["steps"][0]["action_id"] == aid
+
+
+def test_simulate_actions_bad_args_ok_false(kb):
+    assert run_tool(kb, "simulate_actions", {})["ok"] is False
+    assert run_tool(kb, "simulate_actions", {"actions": []})["ok"] is False
+
+
+def test_summarize_simulate_one_line(kb):
+    sug = run_tool(kb, "list_suggestions", {})
+    aid = next(a["id"] for a in sug["actions"] if a["type"] == "RestPlayer")
+    out = run_tool(kb, "simulate_actions", {"actions": [aid]})
+    s = _summarize("simulate_actions", out)
+    assert s.startswith("推演 1 步（1 成功）") and "fitness" in s
+
+
+def test_system_prompt_pins_sandbox_discipline():
+    assert "沙盒" in SYSTEM_PROMPT and "execute_action" in SYSTEM_PROMPT
+
+
+def test_run_turn_simulate_via_fake_client(kb):
+    sug = run_tool(kb, "list_suggestions", {})
+    aid = next(a["id"] for a in sug["actions"] if a["type"] == "RestPlayer")
+    evts = collect(kb, FakeClient(
+        [(None, [("simulate_actions", {"actions": [aid]})]),
+         ("推演完成", [])]),
+        [{"role": "user", "content": "如果轮休他会怎样"}])
+    tr = next(e for e in evts if e["type"] == "tool_result")
+    assert tr["summary"].startswith("推演")
 
 
 # ---------- Task 2：run_turn 工具循环与客户端 ----------
