@@ -1,4 +1,4 @@
-"""Agent 工具表：六个本体操作工具的 schema、分发与治理路径。"""
+"""Agent 工具表：七个本体操作工具的 schema、分发与治理路径。"""
 import pytest
 
 from engine.agent import SYSTEM_PROMPT, TOOLS, run_tool, _summarize
